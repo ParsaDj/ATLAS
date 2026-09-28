@@ -68,7 +68,17 @@ Open http://127.0.0.1:8000 to use the dashboard. The build must exist **before s
 
 For frontend development, run the API on port 8000 and `pnpm dev` from `apps/dashboard` in a second terminal. Vite serves the dashboard on port 5173 and proxies `/api` requests to the backend. No CORS wildcard or frontend API key is required.
 
-The dashboard displays up to ten missions or incidents per page and twenty recent events per detail view. Triggering evidence is retrieved separately by event ID, so older fault evidence remains accessible. Unavailable evidence is shown as unavailable. API failures preserve the last successful snapshot and show a stale-data warning. Mission approval only starts the backend workflow; the current synthetic simulator does not automatically execute arbitrary dashboard-created missions.
+The dashboard displays up to ten missions or incidents per page and twenty recent events per detail view. Triggering evidence is retrieved separately by event ID, so older fault evidence remains accessible. Unavailable evidence is shown as unavailable. API failures preserve the last successful snapshot and show a stale-data warning. To execute dashboard-created missions, start the operations worker in another terminal:
+
+```sh
+.venv/bin/python -m simulator.worker
+```
+
+It waits for approvals, follows each waypoint in order (one simulation unit per tick, default two-second interval), persists progress, and sends idle heartbeats after completion or cancellation. The dashboard shows reached waypoints. This healthy operations mode reports a fixed synthetic 100% battery and no sensor fault; use the separate `simulator.fleet` scenario to demonstrate faults. **Do not run both producers against the same facility at once.**
+
+The worker re-reads authoritative state each tick. Cancellation blocks in-flight execution updates at the server. A short restart resumes the last committed position and waypoint; repeated delivery and competing workers cannot advance the same execution step twice. If the worker stays offline beyond the 15-second heartbeat window and the watchdog fails the mission, restarting restores connectivity but does not resurrect the failed mission. Create and approve a new mission to retry. A long API outage can likewise require a new mission.
+
+With Compose, run `docker compose --profile operations up --build` to start the database, API/dashboard, and worker together. The existing `demo` profile remains a separate fault demonstration.
 
 ## PostgreSQL with Docker Compose
 
@@ -93,7 +103,7 @@ The multi-stage Dockerfile builds the dashboard and serves it through the API on
 
 Tests use isolated SQLite databases and a controllable clock, including a full five-robot scenario, concurrent duplicate delivery, concurrent mission approval, missing first heartbeat, recovery, validation, out-of-order events, and invalid mission transitions. GitHub Actions is configured to run the workflow suite against both SQLite and a PostgreSQL 17 service. For your own PostgreSQL test database, set `ATLAS_TEST_POSTGRES_URL` before invoking pytest; each test uses an isolated temporary schema and removes only that schema afterward. The test user needs schema creation permission.
 
-Local verification: 31 Python tests pass. The initial backend GitHub Actions run passed against both SQLite and PostgreSQL 17. The updated dashboard CI job builds the UI and runs browser tests. Docker Compose itself remains unverified locally because Docker is unavailable.
+Local verification: 38 Python tests pass. The initial backend GitHub Actions run passed against both SQLite and PostgreSQL 17. The updated dashboard CI job builds the UI and runs browser tests. Docker Compose itself remains unverified locally because Docker is unavailable.
 
 Dashboard workflow tests use Chromium and a fresh temporary SQLite database on port 8011; they never touch `atlas.db`:
 
@@ -103,7 +113,7 @@ pnpm exec playwright install chromium
 ATLAS_TEST_PYTHON=../../.venv/bin/python pnpm test:e2e
 ```
 
-Build the dashboard first. The four tests cover incident evidence and linked missions, mission creation/approval/cancellation, API outage/recovery, and mobile navigation. CI also runs these workflows against a real API (SQLite).
+Build the dashboard first. The five tests cover incident evidence and linked missions, mission creation/approval/cancellation, API outage/recovery, mobile navigation, and a dashboard-approved mission completing through a real worker process. CI also runs these workflows against a real API (SQLite).
 
 ## Project map
 

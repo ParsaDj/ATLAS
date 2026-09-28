@@ -25,3 +25,7 @@ Budget: 5–7 hours/week, no hardware required. Milestones 1–3 form the MVP. U
 ## Dashboard milestone delivered ahead of the target schedule
 
 React/TypeScript overview, five-robot fleet cards, last-reported position plot, mission history and proposal form, explicit approvals/cancellations, incident history, evidence details, and event timelines are implemented. Desktop and mobile workflows use the live API. Four Playwright tests verify key customer workflows. AI diagnosis remains deferred to milestone 3.
+
+## Mission execution connected
+
+The operations worker now executes dashboard-approved missions, reports waypoint progress, responds to cancellation, and resumes committed progress after short restarts. A missed heartbeat beyond the failure threshold remains a terminal failure requiring a new mission. Five browser tests cover the customer workflows, including real worker execution.

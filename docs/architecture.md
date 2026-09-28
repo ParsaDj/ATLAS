@@ -47,3 +47,11 @@ React/TypeScript lives in `apps/dashboard`. Vite builds static assets; FastAPI m
 The UI polls every five seconds with non-overlapping requests per resource and aborts requests when a view changes. Failed refreshes retain the last successful data and explicitly mark it stale. Native modal dialogs keep keyboard focus inside the selected workflow. Creating a mission saves a pending proposal; a separate approval action begins execution. Mutations are disabled while pending and the backend validates all state transitions.
 
 Incident details retrieve referenced evidence separately from the paginated event timeline. Missing evidence is an error state, never replaced with an AI explanation. The coordinate plot uses last reported positions; it is not a navigation map.
+
+## Resumable synthetic execution
+
+`python -m simulator.worker` polls the five registered robots and their linked missions. Only running (approved) missions move. Each execution event carries a deterministic mission/step event ID, the next execution step, and completed-waypoint count. The API holds the robot row lock, refreshes mission state, and validates the next step, motion toward the next waypoint, reached count, freshness, and final completion before committing telemetry and progress together. A step cannot skip waypoints or exceed one simulation unit. Legacy fault-demo telemetry remains supported separately.
+
+Progress lives in mission JSON (`execution_step`, `completed_waypoints`, `execution_position`) and defaults safely for older records. No new SQL columns are required. Cancellation racing an uncommitted execution event returns 409, while an already committed event retry returns its original duplicate result. The worker re-reads progress after a 409 or restart. Only run one producer mode per facility. This is a local synthetic integration contract, not authentication or a robot safety controller.
+
+The worker sends unassigned idle heartbeats when no running mission exists. Those can update liveness after a terminal mission but cannot modify its outcome. Battery remains fixed at 100% in this healthy operations mode. Recorded fault scenarios remain in the separate fleet demo.

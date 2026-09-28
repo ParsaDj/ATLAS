@@ -10,7 +10,7 @@ Future AI evaluations must record model version, prompt version, dataset version
 
 ## Initial local verification
 
-Python 3.13: 31 tests passed. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL was verified through the initial GitHub Actions run.
+Python 3.13: 38 tests passed. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL was verified through the initial GitHub Actions run.
 
 ## Reliability review
 
@@ -18,6 +18,10 @@ Regression tests first reproduced three failures: an already-disconnected robot'
 
 ## Dashboard milestone
 
-The production TypeScript/Vite build succeeds. Four Playwright tests pass against the real API with a temporary SQLite database: failure evidence and mission linkage; mission proposal, approval, and cancellation; stale-data warnings and retry recovery during a simulated API outage; and mobile navigation without horizontal page overflow. Browser data is synthetic. The suite does not measure AI accuracy or authorize physical robot actions.
+The production TypeScript/Vite build succeeds. Five Playwright tests pass against the real API with a temporary SQLite database: failure evidence and mission linkage; mission proposal, approval, and cancellation; stale-data warnings and retry recovery during a simulated API outage; and mobile navigation without horizontal page overflow. Browser data is synthetic. The suite does not measure AI accuracy or authorize physical robot actions.
 
 A backend regression test additionally rejects telemetry for a mission cancelled before it was ever approved. This closes an approval bypass caused by checking only the current mission state.
+
+## Mission execution validation
+
+Seven additional API/worker tests cover ordered completion, restarting from committed progress, cancellation between read and delivery, concurrent/lost-ack duplicate delivery, rejected skipped-waypoint motion, pending and timed-out missions, and repeated/negative-coordinate waypoints. These run on SQLite locally and PostgreSQL in CI. A fifth browser test launches a real worker process and confirms a dashboard-created/approved mission reaches all waypoints. Local totals: 38 Python tests and five browser tests pass.

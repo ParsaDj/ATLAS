@@ -33,5 +33,12 @@ services:
     depends_on:
       api:
         condition: service_healthy
+  worker:
+    build: .
+    profiles: ["operations"]
+    command: ["python", "-m", "simulator.worker", "--url", "http://api:8000"]
+    depends_on:
+      api:
+        condition: service_healthy
 volumes:
   atlas-data:

@@ -13,6 +13,8 @@ export type Mission = {
   robot_id: string;
   status: string;
   waypoints: Position[];
+  completed_waypoints?: number;
+  execution_step?: number;
   created_at: string;
   started_at: string | null;
   ended_at: string | null;

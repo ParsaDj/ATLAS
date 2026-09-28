@@ -389,7 +389,7 @@ function App() {
                     <tr>
                       <th>Mission</th>
                       <th>Robot</th>
-                      <th>Waypoints</th>
+                      <th>Progress</th>
                       <th>Status</th>
                       <th>Created</th>
                       <th />
@@ -400,7 +400,7 @@ function App() {
                       <tr key={m.id}>
                         <td className="mono">{short(m.id)}</td>
                         <td>{m.robot_id}</td>
-                        <td>{m.waypoints.length} points</td>
+                        <td>{m.status === "completed" ? m.waypoints.length : (m.completed_waypoints ?? 0)} / {m.waypoints.length} points</td>
                         <td>
                           <Badge status={m.status} />
                         </td>
@@ -861,7 +861,7 @@ function Details({
       });
       setMessage(
         name === "approve"
-          ? "Mission approved. Waiting for simulator telemetry."
+          ? "Mission approved. The running simulator worker will pick it up."
           : "Mission cancelled. History retained.",
       );
       onChange();
@@ -956,7 +956,9 @@ function Details({
             )}
             {mission && (
               <>
-                <h4>Waypoints</h4>
+                <h4>Waypoint progress</h4>
+                <p role="status">{mission.status === "completed" ? mission.waypoints.length : (mission.completed_waypoints ?? 0)} of {mission.waypoints.length} waypoints reached</p>
+                <progress aria-label="Mission waypoint progress" max={mission.waypoints.length} value={mission.status === "completed" ? mission.waypoints.length : (mission.completed_waypoints ?? 0)} style={{width: "100%", margin: "12px 0"}} />
                 <div className="waypoint-list">
                   {mission.waypoints.map((p, i) => (
                     <span key={i}>

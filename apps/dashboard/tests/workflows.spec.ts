@@ -137,3 +137,33 @@ test("mobile navigation keeps incident and mission workflows accessible", async 
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(390);
 });
+
+test('approved dashboard mission executes in a real worker process', async ({ page, request }) => {
+  const { spawn } = await import('node:child_process');
+  const { resolve } = await import('node:path');
+  const python = process.env.ATLAS_TEST_PYTHON || 'python3';
+  const executable = python.includes('/') ? resolve(python) : python;
+  const worker = spawn(executable, ['-m', 'simulator.worker', '--url', 'http://127.0.0.1:8011', '--interval', '0.1'], { cwd: resolve('../..'), stdio: 'ignore' });
+  let workerError: Error | undefined;
+  worker.on('error', error => { workerError = error; });
+  try {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Robot 1', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Create mission', exact: false }).click();
+    await page.getByLabel('Assigned robot').selectOption('robot-1');
+    await page.getByRole('button', { name: 'Save mission proposal' }).click();
+    const drawer = page.getByRole('dialog', { name: 'Mission details' });
+    await drawer.getByRole('button', { name: 'Approve mission' }).click();
+    await expect(drawer.getByText('completed', { exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(drawer.getByText('2 of 2 waypoints reached')).toBeVisible();
+    expect(workerError).toBeUndefined();
+    const missions = await (await request.get('/api/missions?robot_id=robot-1&status=completed')).json();
+    expect(missions.some((mission: {completed_waypoints: number}) => mission.completed_waypoints === 2)).toBeTruthy();
+  } finally {
+    if (worker.exitCode === null) {
+      const exited = new Promise<void>(resolveExit => worker.once('exit', () => resolveExit()));
+      worker.kill('SIGTERM');
+      await exited;
+    }
+  }
+});
