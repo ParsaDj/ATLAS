@@ -10,3 +10,9 @@ __pycache__/
 !.env.example
 *.jsonl
 .DS_Store
+node_modules/
+dist/
+test-results/
+playwright-report/
+
+.pnpm-store/
