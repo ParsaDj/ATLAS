@@ -4,8 +4,10 @@
 flowchart LR
   Simulator[Five synthetic robots] -->|POST telemetry| API[FastAPI]
   API --> DB[(SQLite or PostgreSQL)]
+  API --> Investigator[Read-only evidence engine]
+  Investigator --> Guides[Approved troubleshooting guides]
   Monitor[Heartbeat monitor] --> DB
-  Operator[Operator / interactive API docs] --> API
+  Operator[React dashboard / interactive API docs] --> API
   Future[Future ROS 2 bridge] -. same telemetry contract .-> API
 ```
 
@@ -34,8 +36,30 @@ The heartbeat monitor runs inside one API process. Do not use multiple workers f
 
 ## API
 
-`GET /health`; `GET /api/robots`; `GET /api/robots/{id}`; `GET /api/robots/{id}/telemetry?limit=100`; `GET /api/missions`; `POST /api/missions`; `GET /api/missions/{id}`; `POST /api/missions/{id}/approve`; `POST /api/missions/{id}/cancel`; `GET /api/events`; `GET /api/events/{event_id}`; `POST /api/telemetry`; `GET /api/incidents`; `GET /api/incidents/{id}`.
+`GET /health`; `GET /api/robots`; `GET /api/robots/{id}`; `GET /api/robots/{id}/telemetry?limit=100`; `GET /api/missions`; `POST /api/missions`; `GET /api/missions/{id}`; `POST /api/missions/{id}/approve`; `POST /api/missions/{id}/cancel`; `GET /api/events`; `GET /api/events/{event_id}`; `POST /api/telemetry`; `GET /api/incidents`; `GET /api/incidents/{id}`; `POST /api/incidents/{id}/investigate`.
 
-OpenAPI schemas and request examples are available at `/docs`. Investigation and ticket endpoints are intentionally deferred until their services exist.
+OpenAPI schemas and request examples are available at `/docs`. Ticket creation remains deferred until authenticated server-side approval exists.
+
+## Incident investigation
+
+The API loads one incident, its linked mission, and the exact event identifiers recorded by that incident, then passes those authorized records to `apps/ai_agent`. The evidence engine has no database session and exposes no write tools. It matches recognized fault types to approved local guides and returns a finding, calibrated confidence, limitations, next step, citations, and tool trace. Missing referenced evidence forces an insufficient result. Heartbeat-loss investigations remain limited because watchdog incidents have no triggering telemetry event.
+
+This deterministic renderer is the first agent contract and requires no paid model. A later LLM adapter may render the same evidence package, but the API remains responsible for record access and any future authorization. Documents are bundled with the service and identified by stable IDs so evaluation can verify citations.
 
 List endpoints for missions, events, incidents and robot telemetry support bounded limit/offset pagination with deterministic ordering. Event and incident lists filter by robot or mission; mission lists filter by robot and state. Offset pagination is a local-demo convenience; concurrently arriving data can shift page boundaries. Cursor pagination and indexed normalized columns remain future work.
+
+## Customer dashboard
+
+React/TypeScript lives in `apps/dashboard`. Vite builds static assets; FastAPI mounts them at `/` when the build directory exists, after registering API routes. The Dockerfile builds the frontend in a Node stage and copies only its compiled assets into the Python runtime. During development Vite proxies API requests to port 8000.
+
+The UI polls every five seconds with non-overlapping requests per resource and aborts requests when a view changes. Failed refreshes retain the last successful data and explicitly mark it stale. Native modal dialogs keep keyboard focus inside the selected workflow. Creating a mission saves a pending proposal; a separate approval action begins execution. Mutations are disabled while pending and the backend validates all state transitions.
+
+Incident details retrieve referenced evidence separately from the paginated event timeline. Missing evidence is an error state, never replaced with an AI explanation. The coordinate plot uses last reported positions; it is not a navigation map.
+
+## Resumable synthetic execution
+
+`python -m simulator.worker` polls the five registered robots and their linked missions. Only running (approved) missions move. Each execution event carries a deterministic mission/step event ID, the next execution step, and completed-waypoint count. The API holds the robot row lock, refreshes mission state, and validates the next step, motion toward the next waypoint, reached count, freshness, and final completion before committing telemetry and progress together. A step cannot skip waypoints or exceed one simulation unit. Legacy fault-demo telemetry remains supported separately.
+
+Progress lives in mission JSON (`execution_step`, `completed_waypoints`, `execution_position`) and defaults safely for older records. No new SQL columns are required. Cancellation racing an uncommitted execution event returns 409, while an already committed event retry returns its original duplicate result. The worker re-reads progress after a 409 or restart. Only run one producer mode per facility. This is a local synthetic integration contract, not authentication or a robot safety controller.
+
+The worker sends unassigned idle heartbeats when no running mission exists. Those can update liveness after a terminal mission but cannot modify its outcome. Battery remains fixed at 100% in this healthy operations mode. Recorded fault scenarios remain in the separate fleet demo.

@@ -2,16 +2,21 @@
 import asyncio
 import os
 import logging
+import math
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone, timedelta
 from typing import Literal
 from uuid import uuid4
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, AwareDatetime, ConfigDict
 from sqlalchemy import create_engine, String, JSON, select, event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+
+from apps.ai_agent.service import investigate as investigate_records
 
 
 def now():
@@ -65,6 +70,8 @@ class Sample(StrictModel):
     mission_id: str | None = None
     sensor_status: Literal["ok", "failed"] = "ok"
     mission_status: Literal["running", "completed"] = "running"
+    execution_step: int | None = Field(default=None, ge=1)
+    completed_waypoints: int | None = Field(default=None, ge=0)
 
 
 class CancelRequest(StrictModel):
@@ -212,7 +219,7 @@ def create_app(database_url=None, clock=now, monitor=True):
             if not db.get(Robot, body.robot_id):
                 raise HTTPException(404, "Robot not found")
             mid = str(uuid4())
-            data = {"id": mid, **body.model_dump(), "status": "pending", "created_at": clock().isoformat(), "started_at": None, "ended_at": None}
+            data = {"id": mid, **body.model_dump(), "status": "pending", "created_at": clock().isoformat(), "started_at": None, "ended_at": None, "execution_step": 0, "completed_waypoints": 0}
             db.add(Mission(id=mid, data=data))
             return data
 
@@ -233,7 +240,7 @@ def create_app(database_url=None, clock=now, monitor=True):
             previous = db.get(Mission, r.data["mission_id"]) if r.data["mission_id"] else None
             if previous and previous.data["status"] == "running":
                 raise HTTPException(409, "Robot already has a running mission")
-            m.data = {**m.data, "status": "running", "started_at": clock().isoformat()}
+            m.data = {**m.data, "status": "running", "started_at": clock().isoformat(), "execution_position": r.data["position"] or {"x": 0.0, "y": 0.0}}
             r.data = {**r.data, "mission_id": m.id}
             return m.data
 
@@ -255,7 +262,8 @@ def create_app(database_url=None, clock=now, monitor=True):
         timestamp = clock()
         if body.occurred_at > timestamp + timedelta(seconds=30):
             raise HTTPException(422, "Event timestamp is too far in the future")
-        payload = body.model_dump(mode="json")
+        payload = body.model_dump(mode="json", exclude_none=True)
+        payload["mission_id"] = body.mission_id
         payload["occurred_at"] = body.occurred_at.astimezone(timezone.utc).isoformat()
         try:
             with sessions.begin() as db:
@@ -268,12 +276,42 @@ def create_app(database_url=None, clock=now, monitor=True):
                         raise HTTPException(409, "Event ID reused with different payload")
                     return {"event_id": body.event_id, "duplicate": True}
                 m = db.get(Mission, body.mission_id) if body.mission_id else None
-                if body.mission_id and (not m or m.data["robot_id"] != r.id or m.data["status"] == "pending"):
+                if body.mission_id and (not m or m.data["robot_id"] != r.id or m.data["started_at"] is None):
                     raise HTTPException(422, "Mission must exist, belong to robot and be approved")
+                managed = body.execution_step is not None
+                if managed or body.completed_waypoints is not None:
+                    if not managed or body.completed_waypoints is None or not m:
+                        raise HTTPException(422, "Execution requires mission, step and waypoint progress")
+                    if m.data["status"] != "running" or r.data["mission_id"] != m.id:
+                        raise HTTPException(409, "Mission is no longer running")
+                    previous_step = m.data.get("execution_step", 0)
+                    reached = m.data.get("completed_waypoints", 0)
+                    if body.execution_step != previous_step + 1:
+                        raise HTTPException(409, "Execution progress changed; reload mission")
+                    if reached >= len(m.data["waypoints"]):
+                        raise HTTPException(409, "All waypoints already reached")
+                    origin = m.data.get("execution_position") or {"x": 0.0, "y": 0.0}
+                    target = m.data["waypoints"][reached]
+                    distance = math.hypot(target["x"] - origin["x"], target["y"] - origin["y"])
+                    fraction = min(1.0, 1.0 / distance) if distance else 1.0
+                    expected = {axis: origin[axis] + (target[axis] - origin[axis]) * fraction for axis in ("x", "y")}
+                    if any(not math.isclose(getattr(body.position, axis), expected[axis], abs_tol=1e-8) for axis in ("x", "y")):
+                        raise HTTPException(422, "Execution must advance at most one unit toward the next waypoint")
+                    expected_reached = reached + (1 if distance <= 1.0 else 0)
+                    if body.completed_waypoints != expected_reached:
+                        raise HTTPException(422, "Invalid waypoint progress")
+                    expected_status = "completed" if expected_reached == len(m.data["waypoints"]) else "running"
+                    if body.mission_status != expected_status:
+                        raise HTTPException(422, "Completion requires every waypoint")
+                    if timestamp - body.occurred_at > timedelta(seconds=15) or (r.data["last_event_at"] and body.occurred_at <= datetime.fromisoformat(r.data["last_event_at"])):
+                        raise HTTPException(409, "Execution telemetry is stale; reload mission")
+                    m.data = {**m.data, "execution_step": body.execution_step, "completed_waypoints": body.completed_waypoints, "execution_position": payload["position"]}
                 db.add(Telemetry(id=body.event_id, data={**payload, "received_at": timestamp.isoformat()}))
                 fresh = not r.data["last_event_at"] or body.occurred_at > datetime.fromisoformat(r.data["last_event_at"])
                 recent = timestamp - body.occurred_at <= timedelta(seconds=15)
-                if fresh and recent and body.mission_id == r.data["mission_id"]:
+                active = db.get(Mission, r.data["mission_id"]) if r.data["mission_id"] else None
+                idle = body.mission_id is None and (not active or active.data["status"] != "running")
+                if fresh and recent and (body.mission_id == r.data["mission_id"] or idle):
                     faults = []
                     if body.sensor_status == "failed":
                         faults.append("sensor_failure")
@@ -307,6 +345,32 @@ def create_app(database_url=None, clock=now, monitor=True):
     @app.get("/api/incidents/{incident_id}")
     def incident_detail(incident_id: str):
         return get_record(Incident, incident_id)
+
+    @app.post("/api/incidents/{incident_id}/investigate")
+    def investigate_incident(incident_id: str):
+        """Run a read-only, evidence-grounded investigation."""
+        with sessions() as db:
+            row = db.get(Incident, incident_id)
+            if not row:
+                raise HTTPException(404, "Incident not found")
+            incident_data = row.data
+            mission = (
+                db.get(Mission, incident_data["mission_id"])
+                if incident_data.get("mission_id")
+                else None
+            )
+            event_ids = incident_data.get("event_ids", [])
+            evidence = [db.get(Telemetry, event_id) for event_id in event_ids]
+            events = [record.data for record in evidence if record is not None]
+            return investigate_records(
+                incident_data,
+                mission.data if mission else None,
+                events,
+            )
+
+    dashboard = Path(__file__).resolve().parents[1] / "dashboard" / "dist"
+    if dashboard.is_dir():
+        app.mount("/", StaticFiles(directory=dashboard, html=True), name="dashboard")
 
     return app
 

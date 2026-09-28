@@ -237,3 +237,12 @@ def test_pagination_rejects_unbounded_requests(system, path):
     client, _, _ = system
     assert client.get(path, params={'limit': 1001}).status_code == 422
     assert client.get(path, params={'offset': -1}).status_code == 422
+
+
+def test_cancelled_unapproved_mission_rejects_telemetry(system):
+    client, time, _ = system
+    created = client.post('/api/missions', json={'robot_id': 'robot-1', 'waypoints': [{'x': 0, 'y': 0}]}).json()
+    client.post(f"/api/missions/{created['id']}/cancel", json={'reason': 'Not approved'})
+    response = client.post('/api/telemetry', json=event(time, created['id'], 'robot-1', 0))
+    assert response.status_code == 422
+    assert client.get('/api/robots/robot-1/telemetry').json() == []
