@@ -11,12 +11,12 @@ ATLAS supports a fictional single facility, one customer, and five synthetic ins
 - Persistent telemetry and incident APIs with retry deduplication and filtered, paginated evidence history.
 - Deterministic read-only incident investigation with approved guide retrieval, citations, and uncertainty.
 - A reproducible 120-scenario investigation evaluation dataset.
+- Versioned Alembic migrations for fresh and legacy SQLite/PostgreSQL databases.
 - Local SQLite setup, PostgreSQL Compose configuration, and automated workflow tests.
 
 ## Remaining roadmap from the project blueprint
 
-1. October–November 2026: harden the synthetic fleet/backend; verify PostgreSQL, normalize schema and add migrations.
-1. Harden the synthetic fleet/backend: normalize the schema and add migrations.
+1. Harden the synthetic fleet/backend: normalize frequently queried fields and add foreign keys and indexes.
 2. Add an optional hosted-model renderer and versioned prompts while preserving the current evidence contract.
 3. Integrate ROS 2/Gazebo/Nav2, starting with one robot.
 4. Add authenticated approvals, maintenance tickets, rescheduling, reports, audit logs, and recovery testing.

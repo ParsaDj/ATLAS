@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from apps.ai_agent.service import investigate as investigate_records
+from apps.api.migrations import require_current_schema
 
 
 def now():
@@ -98,8 +99,7 @@ def create_app(database_url=None, clock=now, monitor=True):
 
     sessions = sessionmaker(engine, expire_on_commit=False)
 
-    def initialize():
-        Base.metadata.create_all(engine)
+    def seed_robots():
         with sessions.begin() as db:
             for n in range(1, 6):
                 rid = f"robot-{n}"
@@ -139,7 +139,8 @@ def create_app(database_url=None, clock=now, monitor=True):
 
     @asynccontextmanager
     async def lifespan(app):
-        initialize()
+        require_current_schema(engine)
+        seed_robots()
         task = asyncio.create_task(watchdog()) if monitor else None
         try:
             yield
