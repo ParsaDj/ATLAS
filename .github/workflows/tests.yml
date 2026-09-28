@@ -25,6 +25,7 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install -r requirements.txt
+      - run: DATABASE_URL=sqlite:////tmp/atlas-migration-smoke.db alembic upgrade head
       - run: pytest -q
   dashboard:
     runs-on: ubuntu-latest

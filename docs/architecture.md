@@ -23,7 +23,13 @@ Missions transition `pending → running → completed|failed`. Pending or runni
 
 Telemetry insertion, snapshot update, incident creation, and failure transition share one database transaction. A unique telemetry primary key and incident deduplication key protect retries. Per-mission fault keys collapse repeated samples for the same fault into one incident. For unassigned robots, fault incidents deduplicate by event ID only; fault episode grouping is deferred.
 
-PostgreSQL uses robot row locks to serialize conflicting writes. SQLite uses `BEGIN IMMEDIATE` transactions because it lacks equivalent row locks. SQLite is intended for the small local demo, not high-throughput ingestion. Mission, robot, telemetry, and incident payloads currently use JSON columns; schema normalization, foreign keys, indexes, and migrations should precede larger datasets.
+PostgreSQL uses robot row locks to serialize conflicting writes. SQLite uses `BEGIN IMMEDIATE` transactions because it lacks equivalent row locks. SQLite is intended for the small local demo, not high-throughput ingestion. Mission, robot, telemetry, and incident payloads currently use JSON columns; schema normalization, foreign keys, and indexes should precede larger datasets.
+
+## Schema migrations
+
+Alembic owns the database schema. The API startup path never calls `create_all`; after migrations are applied, it only inserts any missing synthetic robot seed records. The initial revision creates robots, missions, telemetry, and incidents plus Alembic's version table on both SQLite and PostgreSQL. It can adopt a pre-Alembic ATLAS database when the existing table columns match the expected legacy schema, without changing its operational data.
+
+Local and CI tests migrate each isolated database before creating the application. The Docker image runs `alembic upgrade head` before Uvicorn, after Compose has confirmed PostgreSQL is healthy. Future model changes require a reviewed revision rather than implicit startup DDL.
 
 ## Fault rules
 

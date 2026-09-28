@@ -14,10 +14,11 @@ Requires Python 3.11 or newer (tested with 3.13). From the repository directory:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+alembic upgrade head
 uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-SQLite is the default and creates `atlas.db` on startup. No Docker, paid model, or robotics installation is needed. Use one API worker for this demo.
+SQLite is the default and `alembic upgrade head` creates or upgrades `atlas.db`. The API seeds the five synthetic robots after the schema is current; it never creates or alters tables. No Docker, paid model, or robotics installation is needed. Use one API worker for this demo.
 
 Open http://127.0.0.1:8000/docs for the interactive API. In a second terminal:
 
@@ -48,7 +49,7 @@ Use a returned mission ID with `GET /api/missions/{mission_id}` to inspect the f
 
 Run `POST /api/incidents/{incident_id}/investigate` or select **Investigate incident** in the dashboard to produce an evidence-grounded explanation. The first implementation is deterministic and works without an API key or paid model. It reads only the incident's mission, referenced events, and approved local troubleshooting guides. Each result includes a confidence level, explicit limitations, a recommended next step, citations, and a read-only tool trace. It cannot create tickets, reschedule missions, or command robots.
 
-A rerun creates new missions and retains previous records. After the simulator exits, the heartbeat monitor will eventually mark the remaining robots disconnected too. Inspect the printed incident list at the end of the demo for the three intended faults. An interrupted run can leave running missions. The simulator checks for these before creating any new missions. Find them with `GET /api/missions?status=running`, then cancel each using `POST /api/missions/{id}/cancel` with `{"reason":"Restart interrupted demo"}`. Cancellation is a terminal state and retains all evidence. You can then rerun the simulator. To start a separate dataset without removing data, use `DATABASE_URL=sqlite:///./another-demo.db uvicorn apps.api.main:app`.
+A rerun creates new missions and retains previous records. After the simulator exits, the heartbeat monitor will eventually mark the remaining robots disconnected too. Inspect the printed incident list at the end of the demo for the three intended faults. An interrupted run can leave running missions. The simulator checks for these before creating any new missions. Find them with `GET /api/missions?status=running`, then cancel each using `POST /api/missions/{id}/cancel` with `{"reason":"Restart interrupted demo"}`. Cancellation is a terminal state and retains all evidence. You can then rerun the simulator. To start a separate dataset without removing data, first run `DATABASE_URL=sqlite:///./another-demo.db alembic upgrade head`, then start the API with the same `DATABASE_URL`.
 
 List missions with `GET /api/missions?robot_id=robot-3&status=failed`, retrieve their telemetry with `GET /api/events?mission_id=YOUR_MISSION_ID`, and follow incident evidence with `GET /api/events/{event_id}`. Mission, event, incident, and robot telemetry lists accept `limit` (1–1000, default 100) and `offset` (default 0). Event and incident lists accept `robot_id` and `mission_id` filters.
 
@@ -63,6 +64,7 @@ cd apps/dashboard
 pnpm install --frozen-lockfile
 pnpm build
 cd ../..
+.venv/bin/alembic upgrade head
 .venv/bin/uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -95,7 +97,9 @@ docker compose --profile demo run --rm simulator
 
 The multi-stage Dockerfile builds the dashboard and serves it through the API on port 8000. The API binds to loopback. PostgreSQL persists in the `atlas-data` volume; `docker compose down` retains it. Simulator output inside its disposable container is ephemeral; use the local simulator against the Compose API to retain `events.jsonl` locally.
 
-`DATABASE_URL` selects the database. `.env.example` documents its format; the Python service does not automatically load `.env`. Database tables are created on first startup. Schema migrations are not implemented yet.
+`DATABASE_URL` selects the database. `.env.example` documents its format; the Python service does not automatically load `.env`. The container runs `alembic upgrade head` before starting Uvicorn. Existing pre-Alembic ATLAS databases are adopted by the initial migration after their table shape is validated, preserving their records.
+
+For local schema changes, update the SQLAlchemy models, generate a candidate revision with `alembic revision --autogenerate -m "description"`, review it, and run `alembic upgrade head`. Use `alembic current` to inspect the applied revision. Starting the API against an unmigrated database fails instead of silently changing its schema.
 
 ## Tests
 
@@ -120,6 +124,7 @@ Build the dashboard first. The five tests cover incident evidence and linked mis
 ## Project map
 
 - `apps/api/main.py`: API, persistence, mission transitions, heartbeat monitor.
+- `migrations/`: versioned SQLite/PostgreSQL schema changes managed by Alembic.
 - `apps/ai_agent/`: read-only evidence engine and approved troubleshooting guides.
 - `apps/dashboard/`: React/TypeScript customer dashboard and browser tests.
 - `simulator/fleet.py`: reproducible synthetic fleet and JSONL event output.
