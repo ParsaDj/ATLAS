@@ -15,6 +15,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.schema import CreateSchema, DropSchema
 
 from apps.api.main import create_app
+from apps.api.migrations import upgrade_database
 
 
 POSTGRES_URL = os.getenv('ATLAS_TEST_POSTGRES_URL')
@@ -40,6 +41,7 @@ def database_url(request, tmp_path):
 @pytest.fixture
 def system(database_url):
     clock = [datetime(2026, 10, 1, tzinfo=timezone.utc)]
+    upgrade_database(database_url)
     app = create_app(database_url, clock=lambda: clock[0], monitor=False)
     with TestClient(app) as client:
         yield client, clock, app
