@@ -4,6 +4,8 @@
 flowchart LR
   Simulator[Five synthetic robots] -->|POST telemetry| API[FastAPI]
   API --> DB[(SQLite or PostgreSQL)]
+  API --> Investigator[Read-only evidence engine]
+  Investigator --> Guides[Approved troubleshooting guides]
   Monitor[Heartbeat monitor] --> DB
   Operator[React dashboard / interactive API docs] --> API
   Future[Future ROS 2 bridge] -. same telemetry contract .-> API
@@ -34,9 +36,15 @@ The heartbeat monitor runs inside one API process. Do not use multiple workers f
 
 ## API
 
-`GET /health`; `GET /api/robots`; `GET /api/robots/{id}`; `GET /api/robots/{id}/telemetry?limit=100`; `GET /api/missions`; `POST /api/missions`; `GET /api/missions/{id}`; `POST /api/missions/{id}/approve`; `POST /api/missions/{id}/cancel`; `GET /api/events`; `GET /api/events/{event_id}`; `POST /api/telemetry`; `GET /api/incidents`; `GET /api/incidents/{id}`.
+`GET /health`; `GET /api/robots`; `GET /api/robots/{id}`; `GET /api/robots/{id}/telemetry?limit=100`; `GET /api/missions`; `POST /api/missions`; `GET /api/missions/{id}`; `POST /api/missions/{id}/approve`; `POST /api/missions/{id}/cancel`; `GET /api/events`; `GET /api/events/{event_id}`; `POST /api/telemetry`; `GET /api/incidents`; `GET /api/incidents/{id}`; `POST /api/incidents/{id}/investigate`.
 
-OpenAPI schemas and request examples are available at `/docs`. Investigation and ticket endpoints are intentionally deferred until their services exist.
+OpenAPI schemas and request examples are available at `/docs`. Ticket creation remains deferred until authenticated server-side approval exists.
+
+## Incident investigation
+
+The API loads one incident, its linked mission, and the exact event identifiers recorded by that incident, then passes those authorized records to `apps/ai_agent`. The evidence engine has no database session and exposes no write tools. It matches recognized fault types to approved local guides and returns a finding, calibrated confidence, limitations, next step, citations, and tool trace. Missing referenced evidence forces an insufficient result. Heartbeat-loss investigations remain limited because watchdog incidents have no triggering telemetry event.
+
+This deterministic renderer is the first agent contract and requires no paid model. A later LLM adapter may render the same evidence package, but the API remains responsible for record access and any future authorization. Documents are bundled with the service and identified by stable IDs so evaluation can verify citations.
 
 List endpoints for missions, events, incidents and robot telemetry support bounded limit/offset pagination with deterministic ordering. Event and incident lists filter by robot or mission; mission lists filter by robot and state. Offset pagination is a local-demo convenience; concurrently arriving data can shift page boundaries. Cursor pagination and indexed normalized columns remain future work.
 

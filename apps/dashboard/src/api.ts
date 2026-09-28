@@ -40,6 +40,15 @@ export type Event = {
   position: Position;
   mission_status: string;
 };
+export type Investigation = {
+  incident_id: string;
+  finding: string;
+  confidence: "supported" | "limited" | "insufficient";
+  limitations: string[];
+  recommended_next_step: string;
+  citations: { type: "event" | "mission" | "document"; id: string }[];
+  generated_by: string;
+};
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
     ...init,

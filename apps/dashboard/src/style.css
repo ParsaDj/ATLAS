@@ -854,6 +854,33 @@ dd {
   line-height: 1.8;
   margin-top: 8px;
 }
+.investigation {
+  margin-top: 12px;
+  padding: 18px;
+  border: 1px solid #cfdcc9;
+  border-radius: 8px;
+  background: #f6faf3;
+}
+.investigation > p,
+.investigation li {
+  font-size: 12px;
+  line-height: 1.7;
+}
+.investigation ul {
+  padding-left: 18px;
+}
+.citation-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+.citation-list code {
+  padding: 7px;
+  border-radius: 5px;
+  background: #eaf1e5;
+  overflow-wrap: anywhere;
+}
 @media (min-width: 1500px) {
   .map svg {
     height: 255px;

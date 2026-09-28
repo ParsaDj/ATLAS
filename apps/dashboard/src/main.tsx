@@ -6,6 +6,7 @@ import {
   type Mission,
   type Incident,
   type Event,
+  type Investigation,
 } from "./api";
 import "./style.css";
 
@@ -400,7 +401,12 @@ function App() {
                       <tr key={m.id}>
                         <td className="mono">{short(m.id)}</td>
                         <td>{m.robot_id}</td>
-                        <td>{m.status === "completed" ? m.waypoints.length : (m.completed_waypoints ?? 0)} / {m.waypoints.length} points</td>
+                        <td>
+                          {m.status === "completed"
+                            ? m.waypoints.length
+                            : (m.completed_waypoints ?? 0)}{" "}
+                          / {m.waypoints.length} points
+                        </td>
                         <td>
                           <Badge status={m.status} />
                         </td>
@@ -835,6 +841,9 @@ function Details({
   const [error, setError] = useState("");
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState("");
+  const [investigation, setInvestigation] = useState<Investigation | null>(
+    null,
+  );
   const mission =
     selection.kind === "missions" ? (data as Mission | undefined) : undefined;
   const incident =
@@ -865,6 +874,22 @@ function Details({
           : "Mission cancelled. History retained.",
       );
       onChange();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function runInvestigation() {
+    setBusy(true);
+    setError("");
+    try {
+      setInvestigation(
+        await api<Investigation>(
+          `/api/incidents/${encodeURIComponent(selection.id)}/investigate`,
+          { method: "POST" },
+        ),
+      );
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -957,8 +982,22 @@ function Details({
             {mission && (
               <>
                 <h4>Waypoint progress</h4>
-                <p role="status">{mission.status === "completed" ? mission.waypoints.length : (mission.completed_waypoints ?? 0)} of {mission.waypoints.length} waypoints reached</p>
-                <progress aria-label="Mission waypoint progress" max={mission.waypoints.length} value={mission.status === "completed" ? mission.waypoints.length : (mission.completed_waypoints ?? 0)} style={{width: "100%", margin: "12px 0"}} />
+                <p role="status">
+                  {mission.status === "completed"
+                    ? mission.waypoints.length
+                    : (mission.completed_waypoints ?? 0)}{" "}
+                  of {mission.waypoints.length} waypoints reached
+                </p>
+                <progress
+                  aria-label="Mission waypoint progress"
+                  max={mission.waypoints.length}
+                  value={
+                    mission.status === "completed"
+                      ? mission.waypoints.length
+                      : (mission.completed_waypoints ?? 0)
+                  }
+                  style={{ width: "100%", margin: "12px 0" }}
+                />
                 <div className="waypoint-list">
                   {mission.waypoints.map((p, i) => (
                     <span key={i}>
@@ -1017,6 +1056,41 @@ function Details({
             )}
             {incident && (
               <>
+                <h4>Evidence-based investigation</h4>
+                {!investigation ? (
+                  <button
+                    className="primary"
+                    disabled={busy || !!resource.error}
+                    onClick={() => void runInvestigation()}
+                  >
+                    {busy ? "Investigating…" : "Investigate incident"}
+                  </button>
+                ) : (
+                  <section
+                    className="investigation"
+                    aria-label="Investigation result"
+                  >
+                    <Badge status={investigation.confidence} />
+                    <p>{investigation.finding}</p>
+                    <h4>Suggested next step</h4>
+                    <p>{investigation.recommended_next_step}</p>
+                    <h4>Limits</h4>
+                    <ul>
+                      {investigation.limitations.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                    <h4>Citations</h4>
+                    <div className="citation-list">
+                      {investigation.citations.map((citation) => (
+                        <code key={`${citation.type}:${citation.id}`}>
+                          {citation.type}:{citation.id}
+                        </code>
+                      ))}
+                    </div>
+                    <small>{investigation.generated_by}</small>
+                  </section>
+                )}
                 <h4>Triggering evidence</h4>
                 {incident.event_ids.length ? (
                   incident.event_ids.map((id) => <Evidence key={id} id={id} />)

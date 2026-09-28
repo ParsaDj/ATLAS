@@ -11,6 +11,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY apps/api apps/api
+COPY apps/ai_agent apps/ai_agent
 COPY apps/__init__.py apps/__init__.py
 COPY --from=dashboard /build/dist apps/dashboard/dist
 COPY simulator simulator

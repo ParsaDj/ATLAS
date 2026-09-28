@@ -45,6 +45,12 @@ test("operator follows failed mission and triggering telemetry", async ({
     drawer.getByText("browser-seed-3", { exact: true }).first(),
   ).toBeVisible();
   await expect(drawer.getByText(/Battery 85% · sensor failed/)).toBeVisible();
+  await drawer.getByRole("button", { name: "Investigate incident" }).click();
+  await expect(
+    drawer.getByRole("region", { name: "Investigation result" }),
+  ).toContainText("supports a sensor-path mission failure");
+  await expect(drawer.getByText(/document:DOC-SENSOR-001/)).toBeVisible();
+  await expect(drawer.getByText(/do not distinguish hardware/)).toBeVisible();
   await drawer.getByRole("button", { name: "Open linked mission" }).click();
   await expect(
     page
@@ -138,31 +144,62 @@ test("mobile navigation keeps incident and mission workflows accessible", async 
   ).toBeLessThanOrEqual(390);
 });
 
-test('approved dashboard mission executes in a real worker process', async ({ page, request }) => {
-  const { spawn } = await import('node:child_process');
-  const { resolve } = await import('node:path');
-  const python = process.env.ATLAS_TEST_PYTHON || 'python3';
-  const executable = python.includes('/') ? resolve(python) : python;
-  const worker = spawn(executable, ['-m', 'simulator.worker', '--url', 'http://127.0.0.1:8011', '--interval', '0.1'], { cwd: resolve('../..'), stdio: 'ignore' });
+test("approved dashboard mission executes in a real worker process", async ({
+  page,
+  request,
+}) => {
+  const { spawn } = await import("node:child_process");
+  const { resolve } = await import("node:path");
+  const python = process.env.ATLAS_TEST_PYTHON || "python3";
+  const executable = python.includes("/") ? resolve(python) : python;
+  const worker = spawn(
+    executable,
+    [
+      "-m",
+      "simulator.worker",
+      "--url",
+      "http://127.0.0.1:8011",
+      "--interval",
+      "0.1",
+    ],
+    { cwd: resolve("../.."), stdio: "ignore" },
+  );
   let workerError: Error | undefined;
-  worker.on('error', error => { workerError = error; });
+  worker.on("error", (error) => {
+    workerError = error;
+  });
   try {
-    await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Robot 1', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Create mission', exact: false }).click();
-    await page.getByLabel('Assigned robot').selectOption('robot-1');
-    await page.getByRole('button', { name: 'Save mission proposal' }).click();
-    const drawer = page.getByRole('dialog', { name: 'Mission details' });
-    await drawer.getByRole('button', { name: 'Approve mission' }).click();
-    await expect(drawer.getByText('completed', { exact: true })).toBeVisible({ timeout: 15000 });
-    await expect(drawer.getByText('2 of 2 waypoints reached')).toBeVisible();
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", { name: "Robot 1", exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Create mission", exact: false })
+      .click();
+    await page.getByLabel("Assigned robot").selectOption("robot-1");
+    await page.getByRole("button", { name: "Save mission proposal" }).click();
+    const drawer = page.getByRole("dialog", { name: "Mission details" });
+    await drawer.getByRole("button", { name: "Approve mission" }).click();
+    await expect(drawer.getByText("completed", { exact: true })).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(drawer.getByText("2 of 2 waypoints reached")).toBeVisible();
     expect(workerError).toBeUndefined();
-    const missions = await (await request.get('/api/missions?robot_id=robot-1&status=completed')).json();
-    expect(missions.some((mission: {completed_waypoints: number}) => mission.completed_waypoints === 2)).toBeTruthy();
+    const missions = await (
+      await request.get("/api/missions?robot_id=robot-1&status=completed")
+    ).json();
+    expect(
+      missions.some(
+        (mission: { completed_waypoints: number }) =>
+          mission.completed_waypoints === 2,
+      ),
+    ).toBeTruthy();
   } finally {
     if (worker.exitCode === null) {
-      const exited = new Promise<void>(resolveExit => worker.once('exit', () => resolveExit()));
-      worker.kill('SIGTERM');
+      const exited = new Promise<void>((resolveExit) =>
+        worker.once("exit", () => resolveExit()),
+      );
+      worker.kill("SIGTERM");
       await exited;
     }
   }

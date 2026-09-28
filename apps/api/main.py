@@ -16,6 +16,8 @@ from sqlalchemy import create_engine, String, JSON, select, event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
+from apps.ai_agent.service import investigate as investigate_records
+
 
 def now():
     return datetime.now(timezone.utc)
@@ -343,6 +345,28 @@ def create_app(database_url=None, clock=now, monitor=True):
     @app.get("/api/incidents/{incident_id}")
     def incident_detail(incident_id: str):
         return get_record(Incident, incident_id)
+
+    @app.post("/api/incidents/{incident_id}/investigate")
+    def investigate_incident(incident_id: str):
+        """Run a read-only, evidence-grounded investigation."""
+        with sessions() as db:
+            row = db.get(Incident, incident_id)
+            if not row:
+                raise HTTPException(404, "Incident not found")
+            incident_data = row.data
+            mission = (
+                db.get(Mission, incident_data["mission_id"])
+                if incident_data.get("mission_id")
+                else None
+            )
+            event_ids = incident_data.get("event_ids", [])
+            evidence = [db.get(Telemetry, event_id) for event_id in event_ids]
+            events = [record.data for record in evidence if record is not None]
+            return investigate_records(
+                incident_data,
+                mission.data if mission else None,
+                events,
+            )
 
     dashboard = Path(__file__).resolve().parents[1] / "dashboard" / "dist"
     if dashboard.is_dir():
