@@ -21,3 +21,7 @@ ATLAS supports a fictional single facility, one customer, and five synthetic ins
 6. September 2027: reproducible portfolio release and recorded demo.
 
 Budget: 5–7 hours/week, no hardware required. Milestones 1–3 form the MVP. Use only synthetic or appropriately licensed public material. Choose a license and publish the repository when ready; neither publication nor an open-source license is implied by this initial local scaffold.
+
+## Dashboard milestone delivered ahead of the target schedule
+
+React/TypeScript overview, five-robot fleet cards, last-reported position plot, mission history and proposal form, explicit approvals/cancellations, incident history, evidence details, and event timelines are implemented. Desktop and mobile workflows use the live API. Four Playwright tests verify key customer workflows. AI diagnosis remains deferred to milestone 3.

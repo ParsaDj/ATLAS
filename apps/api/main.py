@@ -6,8 +6,10 @@ from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone, timedelta
 from typing import Literal
 from uuid import uuid4
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, AwareDatetime, ConfigDict
 from sqlalchemy import create_engine, String, JSON, select, event
 from sqlalchemy.exc import IntegrityError
@@ -268,7 +270,7 @@ def create_app(database_url=None, clock=now, monitor=True):
                         raise HTTPException(409, "Event ID reused with different payload")
                     return {"event_id": body.event_id, "duplicate": True}
                 m = db.get(Mission, body.mission_id) if body.mission_id else None
-                if body.mission_id and (not m or m.data["robot_id"] != r.id or m.data["status"] == "pending"):
+                if body.mission_id and (not m or m.data["robot_id"] != r.id or m.data["started_at"] is None):
                     raise HTTPException(422, "Mission must exist, belong to robot and be approved")
                 db.add(Telemetry(id=body.event_id, data={**payload, "received_at": timestamp.isoformat()}))
                 fresh = not r.data["last_event_at"] or body.occurred_at > datetime.fromisoformat(r.data["last_event_at"])
@@ -307,6 +309,10 @@ def create_app(database_url=None, clock=now, monitor=True):
     @app.get("/api/incidents/{incident_id}")
     def incident_detail(incident_id: str):
         return get_record(Incident, incident_id)
+
+    dashboard = Path(__file__).resolve().parents[1] / "dashboard" / "dist"
+    if dashboard.is_dir():
+        app.mount("/", StaticFiles(directory=dashboard, html=True), name="dashboard")
 
     return app
 

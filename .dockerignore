@@ -5,3 +5,12 @@ __pycache__
 .env
 *.jsonl
 .pytest_cache
+**/node_modules
+**/dist
+**/test-results
+**/playwright-report
+.env.*
+!.env.example
+*.db-*
+
+.pnpm-store

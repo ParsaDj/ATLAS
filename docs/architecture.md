@@ -5,7 +5,7 @@ flowchart LR
   Simulator[Five synthetic robots] -->|POST telemetry| API[FastAPI]
   API --> DB[(SQLite or PostgreSQL)]
   Monitor[Heartbeat monitor] --> DB
-  Operator[Operator / interactive API docs] --> API
+  Operator[React dashboard / interactive API docs] --> API
   Future[Future ROS 2 bridge] -. same telemetry contract .-> API
 ```
 
@@ -39,3 +39,11 @@ The heartbeat monitor runs inside one API process. Do not use multiple workers f
 OpenAPI schemas and request examples are available at `/docs`. Investigation and ticket endpoints are intentionally deferred until their services exist.
 
 List endpoints for missions, events, incidents and robot telemetry support bounded limit/offset pagination with deterministic ordering. Event and incident lists filter by robot or mission; mission lists filter by robot and state. Offset pagination is a local-demo convenience; concurrently arriving data can shift page boundaries. Cursor pagination and indexed normalized columns remain future work.
+
+## Customer dashboard
+
+React/TypeScript lives in `apps/dashboard`. Vite builds static assets; FastAPI mounts them at `/` when the build directory exists, after registering API routes. The Dockerfile builds the frontend in a Node stage and copies only its compiled assets into the Python runtime. During development Vite proxies API requests to port 8000.
+
+The UI polls every five seconds with non-overlapping requests per resource and aborts requests when a view changes. Failed refreshes retain the last successful data and explicitly mark it stale. Native modal dialogs keep keyboard focus inside the selected workflow. Creating a mission saves a pending proposal; a separate approval action begins execution. Mutations are disabled while pending and the backend validates all state transitions.
+
+Incident details retrieve referenced evidence separately from the paginated event timeline. Missing evidence is an error state, never replaced with an AI explanation. The coordinate plot uses last reported positions; it is not a navigation map.

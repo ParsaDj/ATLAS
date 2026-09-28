@@ -1,8 +1,18 @@
+FROM node:22-slim AS dashboard
+WORKDIR /build
+RUN npm install --global pnpm@11.25.0
+COPY apps/dashboard/package.json apps/dashboard/pnpm-lock.yaml apps/dashboard/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY apps/dashboard/ ./
+RUN pnpm build
+
 FROM python:3.13-slim
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY apps apps
+COPY apps/api apps/api
+COPY apps/__init__.py apps/__init__.py
+COPY --from=dashboard /build/dist apps/dashboard/dist
 COPY simulator simulator
 EXPOSE 8000
 CMD ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
