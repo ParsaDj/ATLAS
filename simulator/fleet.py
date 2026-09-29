@@ -54,7 +54,7 @@ def prepare_fleet(client):
     return missions
 
 
-def authenticate(client, username, password):
+def authenticate(client, username, password, bridge_key):
     if not password:
         raise RuntimeError("Set ATLAS_OPERATOR_PASSWORD or pass --password")
     response = client.post(
@@ -63,6 +63,9 @@ def authenticate(client, username, password):
     )
     response.raise_for_status()
     client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
+    if not bridge_key:
+        raise RuntimeError("Set ATLAS_TELEMETRY_API_KEY or pass --bridge-key")
+    client.headers["X-ATLAS-Bridge-Key"] = bridge_key
 
 
 def main():
@@ -73,6 +76,7 @@ def main():
     parser.add_argument("--output", default="events.jsonl")
     parser.add_argument("--username", default=os.getenv("ATLAS_OPERATOR_USERNAME", "atlas-admin"))
     parser.add_argument("--password", default=os.getenv("ATLAS_OPERATOR_PASSWORD"))
+    parser.add_argument("--bridge-key", default=os.getenv("ATLAS_TELEMETRY_API_KEY"))
     args = parser.parse_args()
     if args.ticks < 1:
         parser.error("--ticks must be positive")
@@ -81,7 +85,7 @@ def main():
     run_id = str(uuid4())
     with httpx.Client(base_url=args.url, timeout=10) as client, open(args.output, "a") as output:
         try:
-            authenticate(client, args.username, args.password)
+            authenticate(client, args.username, args.password, args.bridge_key)
             missions = prepare_fleet(client)
         except (RuntimeError, httpx.HTTPError) as error:
             raise SystemExit(f"Cannot start fleet: {error}") from error

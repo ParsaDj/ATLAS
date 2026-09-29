@@ -2,7 +2,7 @@
 
 ATLAS is an independent synthetic-data portfolio prototype. It does not connect to physical robots or proprietary systems. Its tests make no claims about physical safety.
 
-The local application authenticates human users with server-side sessions and enforces roles for mission and administrative actions. Mission approvals, cancellations, investigations, and user creation are attributed in the audit log. Secure cookies can be enabled with `ATLAS_SECURE_COOKIES=1` when TLS is present. Remote deployment still requires TLS, secret management, rate limiting, account recovery, and a separate machine-identity design for robot telemetry.
+The local application authenticates human users with server-side sessions and enforces roles for mission and administrative actions. Mission approvals, cancellations, investigations, and user creation are attributed in the audit log. Secure cookies can be enabled with `ATLAS_SECURE_COOKIES=1` when TLS is present. Robot producers use a separate bridge key; missing or incorrect credentials cannot ingest telemetry. Remote deployment still requires TLS, managed secrets, rotation, per-robot identity, rate limiting, and account recovery.
 
 The incident investigator has read-only access to API-supplied telemetry, mission records, and approved local documentation. It cites record and document identifiers, expresses uncertainty, and treats missing referenced evidence as insufficient. Its tool trace contains only record retrieval and document retrieval operations. It has no database connection, write tools, ticket access, mission transition access, or robot control path.
 

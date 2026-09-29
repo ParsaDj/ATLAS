@@ -13,7 +13,7 @@ from typing import Literal
 from uuid import uuid4
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, AwareDatetime, ConfigDict
 from sqlalchemy import Boolean, ForeignKey, create_engine, String, JSON, select, event
@@ -155,6 +155,7 @@ def create_app(
     monitor=True,
     bootstrap_admin_password=None,
     bootstrap_admin_username=None,
+    telemetry_api_key=None,
 ):
     engine = create_engine(database_url or os.getenv("DATABASE_URL", "sqlite:///./atlas.db"))
     if engine.dialect.name == "sqlite":
@@ -170,6 +171,17 @@ def create_app(
             connection.exec_driver_sql("BEGIN IMMEDIATE")
 
     sessions = sessionmaker(engine, expire_on_commit=False)
+    bridge_key = telemetry_api_key or os.getenv("ATLAS_TELEMETRY_API_KEY")
+    if bridge_key and len(bridge_key) < 24:
+        raise ValueError("ATLAS_TELEMETRY_API_KEY must contain at least 24 characters")
+
+    def authorize_bridge(x_atlas_bridge_key: str | None = Header(default=None)):
+        if not bridge_key:
+            raise HTTPException(503, "Telemetry ingestion is not configured")
+        if not x_atlas_bridge_key or not hmac.compare_digest(
+            x_atlas_bridge_key.encode(), bridge_key.encode()
+        ):
+            raise HTTPException(401, "Invalid bridge credentials")
 
     def seed_robots():
         with sessions.begin() as db:
@@ -514,7 +526,7 @@ def create_app(
             return m.data
 
     @app.post("/api/telemetry")
-    def ingest(body: Sample):
+    def ingest(body: Sample, _bridge=Depends(authorize_bridge)):
         timestamp = clock()
         if body.occurred_at > timestamp + timedelta(seconds=30):
             raise HTTPException(422, "Event timestamp is too far in the future")

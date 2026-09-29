@@ -8,7 +8,8 @@ flowchart LR
   Investigator --> Guides[Approved troubleshooting guides]
   Monitor[Heartbeat monitor] --> DB
   Operator[React dashboard / interactive API docs] --> API
-  Future[Future ROS 2 bridge] -. same telemetry contract .-> API
+  ROS[ROS 2 adapter] --> Outbox[Durable bridge outbox]
+  Outbox -->|authenticated telemetry| API
 ```
 
 ## Telemetry contract
@@ -35,7 +36,13 @@ Local and CI tests migrate each isolated database before creating the applicatio
 
 Human workflows use local accounts with `operator`, `technician`, or `administrator` roles. Passwords are stored as salted scrypt hashes. A successful login creates an eight-hour random server-side session; the browser receives only an HttpOnly, SameSite=Strict cookie and a separate per-session CSRF token. Mission writes require operator or administrator access plus the CSRF header. Incident investigation accepts any authenticated role. User creation and audit retrieval require an administrator.
 
-Mission creation, approval, cancellation, incident investigation, user creation, login, and logout write append-only audit records. Domain mutations and their audit records share the same database transaction. Audit entries contain actor, action, resource, timestamp, and bounded operational details; they never contain passwords, session tokens, or CSRF tokens. Robot telemetry remains outside human sessions so the later ROS bridge can use a separate machine-identity contract.
+Mission creation, approval, cancellation, incident investigation, user creation, login, and logout write append-only audit records. Domain mutations and their audit records share the same database transaction. Audit entries contain actor, action, resource, timestamp, and bounded operational details; they never contain passwords, session tokens, or CSRF tokens. Robot telemetry uses a separate machine credential in the `X-ATLAS-Bridge-Key` header and never reuses a human session or CSRF token. The API fails closed when the bridge key is not configured. The local demo uses one facility-wide key; per-robot credentials and rotation are required before a remote or physical deployment.
+
+## Robotics bridge
+
+`robotics/atlas_bridge` separates ROS message handling from API delivery. Its core polls the single running mission assigned to a robot and generates deterministic event identifiers from robot ID, ROS timestamp, and an observation sequence. Every event enters a local SQLite outbox before transmission. Successful and duplicate deliveries are acknowledged; network failures, authentication errors, throttling, and server errors remain queued. Other client errors are quarantined with a bounded reason so one invalid event cannot block subsequent telemetry.
+
+The outbox is a delivery mechanism rather than a safety controller. Nav2 remains responsible for motion execution and obstacle handling. The future `rclpy` wrapper will subscribe to odometry, battery, and diagnostics and will translate approved mission waypoints into a Nav2 action. ATLAS cannot publish raw motor commands.
 
 ## Fault rules
 
