@@ -31,6 +31,12 @@ Alembic owns the database schema. The API startup path never calls `create_all`;
 
 Local and CI tests migrate each isolated database before creating the application. The Docker image runs `alembic upgrade head` before Uvicorn, after Compose has confirmed PostgreSQL is healthy. Future model changes require a reviewed revision rather than implicit startup DDL.
 
+## Authentication and audit
+
+Human workflows use local accounts with `operator`, `technician`, or `administrator` roles. Passwords are stored as salted scrypt hashes. A successful login creates an eight-hour random server-side session; the browser receives only an HttpOnly, SameSite=Strict cookie and a separate per-session CSRF token. Mission writes require operator or administrator access plus the CSRF header. Incident investigation accepts any authenticated role. User creation and audit retrieval require an administrator.
+
+Mission creation, approval, cancellation, incident investigation, user creation, login, and logout write append-only audit records. Domain mutations and their audit records share the same database transaction. Audit entries contain actor, action, resource, timestamp, and bounded operational details; they never contain passwords, session tokens, or CSRF tokens. Robot telemetry remains outside human sessions so the later ROS bridge can use a separate machine-identity contract.
+
 ## Fault rules
 
 - Battery below 20%: low battery incident.

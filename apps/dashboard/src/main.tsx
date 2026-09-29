@@ -7,11 +7,15 @@ import {
   type Incident,
   type Event,
   type Investigation,
+  type User,
+  type AuditLog,
+  type LoginResult,
+  rememberCsrf,
 } from "./api";
 import "./style.css";
 
 type Selection = { kind: "robots" | "missions" | "incidents"; id: string };
-const label = (text: string) => text.replaceAll("_", " ");
+const label = (text: string) => text.replaceAll("_", " ").replaceAll(".", " ");
 const short = (id: string) => id.slice(0, 8).toUpperCase();
 const time = (value: string | null | undefined) =>
   value
@@ -94,7 +98,100 @@ function Pager({
   );
 }
 
-function App() {
+function Root() {
+  const [user, setUser] = useState<User | null | undefined>(undefined);
+  useEffect(() => {
+    api<User>("/api/auth/me")
+      .then(setUser)
+      .catch(() => setUser(null));
+  }, []);
+  if (user === undefined)
+    return <div className="auth-loading">Loading ATLAS…</div>;
+  if (!user) return <Login onLogin={setUser} />;
+  return (
+    <App
+      user={user}
+      onLogout={async () => {
+        await api<void>("/api/auth/logout", { method: "POST" });
+        rememberCsrf(null);
+        setUser(null);
+      }}
+    />
+  );
+}
+
+function Login({ onLogin }: { onLogin: (user: User) => void }) {
+  const [username, setUsername] = useState("atlas-admin");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <main className="login-page">
+      <form
+        className="login-card"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setBusy(true);
+          setError("");
+          try {
+            const result = await api<LoginResult>("/api/auth/login", {
+              method: "POST",
+              body: JSON.stringify({ username, password }),
+            });
+            rememberCsrf(result.csrf_token);
+            onLogin(result.user);
+          } catch (reason) {
+            setError((reason as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <div className="login-brand">
+          <span className="brand-mark">A</span>ATLAS
+        </div>
+        <h1>Operations sign in</h1>
+        <p>Use your Northstar facility account to continue.</p>
+        <label>
+          Username
+          <input
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            autoComplete="current-password"
+            required
+            minLength={12}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </label>
+        {error && (
+          <div className="error" role="alert">
+            {error}
+          </div>
+        )}
+        <button className="primary" disabled={busy}>
+          {busy ? "Signing in…" : "Sign in"}
+        </button>
+        <small>Synthetic environment · authorized local users only</small>
+      </form>
+    </main>
+  );
+}
+
+function App({
+  user,
+  onLogout,
+}: {
+  user: User;
+  onLogout: () => Promise<void>;
+}) {
   const [view, setView] = useState("Overview");
   const [revision, setRevision] = useState(0);
   const [page, setPage] = useState(0);
@@ -146,6 +243,7 @@ function App() {
             ["Fleet", "◈"],
             ["Missions", "⇢"],
             ["Incidents", "⚑"],
+            ...(user.role === "administrator" ? [["Administration", "⌁"]] : []),
           ].map(([name, icon]) => (
             <button
               key={name}
@@ -169,9 +267,10 @@ function App() {
             Synthetic environment<small>Fictional facility · no hardware</small>
           </div>
           <div className="profile">
-            <span>OP</span>
+            <span>{user.username.slice(0, 2).toUpperCase()}</span>
             <div>
-              Local operator<small>Development workspace</small>
+              {user.username}
+              <small>{label(user.role)}</small>
             </div>
           </div>
         </div>
@@ -181,7 +280,10 @@ function App() {
           <span>
             Workspace <b>/</b> {view}
           </span>
-          <span className="environment">SIMULATION</span>
+          <div className="topbar-actions">
+            <span className="environment">SIMULATION</span>
+            <button onClick={() => void onLogout()}>Sign out</button>
+          </div>
         </header>
         <div className="content">
           <div className="page-heading">
@@ -194,7 +296,9 @@ function App() {
                     ? "Robot fleet"
                     : view === "Missions"
                       ? "Inspection missions"
-                      : "Incident center"}
+                      : view === "Incidents"
+                        ? "Incident center"
+                        : "Security & audit"}
               </h1>
               <p>
                 {view === "Overview"
@@ -203,12 +307,16 @@ function App() {
                     ? "Live operational state from your five simulated robots."
                     : view === "Missions"
                       ? "Plan inspections, approve execution, and review the record."
-                      : "Follow each failure back to its recorded evidence."}
+                      : view === "Incidents"
+                        ? "Follow each failure back to its recorded evidence."
+                        : "Manage local users and review accountable operational actions."}
               </p>
             </div>
-            <button className="primary" onClick={() => setCreateOpen(true)}>
-              ＋ Create mission
-            </button>
+            {["operator", "administrator"].includes(user.role) && (
+              <button className="primary" onClick={() => setCreateOpen(true)}>
+                ＋ Create mission
+              </button>
+            )}
           </div>
           <div className="connection">
             <span>
@@ -506,6 +614,12 @@ function App() {
               />
             </section>
           )}
+          {view === "Administration" && (
+            <Administration
+              revision={revision}
+              onChange={() => setRevision((value) => value + 1)}
+            />
+          )}
           <footer>
             ATLAS · Intelligent robot operations{" "}
             <span>Independent project / synthetic data only</span>
@@ -531,8 +645,133 @@ function App() {
           onClose={() => setSelection(null)}
           onChange={() => setRevision((v) => v + 1)}
           onSelect={setSelection}
+          role={user.role}
         />
       )}
+    </div>
+  );
+}
+
+function Administration({
+  revision,
+  onChange,
+}: {
+  revision: number;
+  onChange: () => void;
+}) {
+  const users = useResource<User[]>("/api/users", revision);
+  const logs = useResource<AuditLog[]>("/api/audit-logs?limit=100", revision);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<User["role"]>("operator");
+  const [error, setError] = useState("");
+  return (
+    <div className="admin-grid">
+      <section className="panel">
+        <PanelHeader
+          title="Facility users"
+          subtitle="Local accounts and server-enforced roles"
+        />
+        <form
+          className="admin-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setError("");
+            try {
+              await api<User>("/api/users", {
+                method: "POST",
+                body: JSON.stringify({ username, password, role }),
+              });
+              setUsername("");
+              setPassword("");
+              onChange();
+            } catch (reason) {
+              setError((reason as Error).message);
+            }
+          }}
+        >
+          <label>
+            Username
+            <input
+              required
+              minLength={3}
+              pattern="[a-z0-9._-]+"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </label>
+          <label>
+            Temporary password
+            <input
+              required
+              type="password"
+              minLength={12}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+          <label>
+            Role
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as User["role"])}
+            >
+              <option value="operator">Operator</option>
+              <option value="technician">Technician</option>
+              <option value="administrator">Administrator</option>
+            </select>
+          </label>
+          {error && (
+            <div className="error" role="alert">
+              {error}
+            </div>
+          )}
+          <button className="primary">Create user</button>
+        </form>
+        <div className="user-list">
+          {users.data?.map((account) => (
+            <div key={account.id}>
+              <strong>{account.username}</strong>
+              <Badge status={account.role} />
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="panel audit-panel">
+        <PanelHeader
+          title="Audit history"
+          subtitle="Latest 100 authenticated operational actions"
+        />
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Actor</th>
+                <th>Action</th>
+                <th>Resource</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.data?.map((record) => (
+                <tr key={record.id}>
+                  <td>{time(record.occurred_at)}</td>
+                  <td>{record.actor_username}</td>
+                  <td>{label(record.action)}</td>
+                  <td>
+                    <code>
+                      {record.resource_type}:{short(record.resource_id)}
+                    </code>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!logs.data?.length && (
+          <Empty text={logs.error ?? "No audit records yet."} />
+        )}
+      </section>
     </div>
   );
 }
@@ -825,12 +1064,14 @@ function Details({
   onClose,
   onChange,
   onSelect,
+  role,
 }: {
   selection: Selection;
   revision: number;
   onClose: () => void;
   onChange: () => void;
   onSelect: (s: Selection) => void;
+  role: User["role"];
 }) {
   const resource = useResource<Robot | Mission | Incident>(
     `/api/${selection.kind}/${encodeURIComponent(selection.id)}`,
@@ -1008,7 +1249,7 @@ function Details({
                 {mission.cancellation_reason && (
                   <p>Cancellation reason: {mission.cancellation_reason}</p>
                 )}
-                {mission.status === "pending" && (
+                {mission.status === "pending" && role !== "technician" && (
                   <button
                     className="primary"
                     disabled={busy || !!resource.error}
@@ -1017,31 +1258,32 @@ function Details({
                     {busy ? "Working…" : "Approve mission"}
                   </button>
                 )}
-                {["pending", "running"].includes(mission.status) && (
-                  <form
-                    className="cancel-form"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void action("cancel");
-                    }}
-                  >
-                    <label>
-                      Cancellation reason
-                      <input
-                        required
-                        maxLength={500}
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                        placeholder="Why should this mission stop?"
-                      />
-                    </label>
-                    <button
-                      disabled={busy || !reason.trim() || !!resource.error}
+                {["pending", "running"].includes(mission.status) &&
+                  role !== "technician" && (
+                    <form
+                      className="cancel-form"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void action("cancel");
+                      }}
                     >
-                      Cancel mission
-                    </button>
-                  </form>
-                )}
+                      <label>
+                        Cancellation reason
+                        <input
+                          required
+                          maxLength={500}
+                          value={reason}
+                          onChange={(e) => setReason(e.target.value)}
+                          placeholder="Why should this mission stop?"
+                        />
+                      </label>
+                      <button
+                        disabled={busy || !reason.trim() || !!resource.error}
+                      >
+                        Cancel mission
+                      </button>
+                    </form>
+                  )}
               </>
             )}
             {message && (
@@ -1173,6 +1415,6 @@ function Evidence({ id }: { id: string }) {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <Root />
   </StrictMode>,
 );
