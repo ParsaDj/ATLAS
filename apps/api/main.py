@@ -1,18 +1,22 @@
 """Local portfolio API. All operational data is synthetic."""
 import asyncio
+import base64
+import hashlib
+import hmac
 import os
 import logging
 import math
+import secrets
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone, timedelta
 from typing import Literal
 from uuid import uuid4
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, AwareDatetime, ConfigDict
-from sqlalchemy import create_engine, String, JSON, select, event
+from sqlalchemy import Boolean, ForeignKey, create_engine, String, JSON, select, event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
@@ -53,6 +57,34 @@ class Incident(Base):
     data: Mapped[dict] = mapped_column(JSON)
 
 
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    username: Mapped[str] = mapped_column(String, unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String)
+    role: Mapped[str] = mapped_column(String)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+    token_hash: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    csrf_hash: Mapped[str] = mapped_column(String)
+    expires_at: Mapped[str] = mapped_column(String, index=True)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    actor_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    action: Mapped[str] = mapped_column(String, index=True)
+    resource_type: Mapped[str] = mapped_column(String)
+    resource_id: Mapped[str] = mapped_column(String, index=True)
+    occurred_at: Mapped[str] = mapped_column(String, index=True)
+    details: Mapped[dict] = mapped_column(JSON)
+
+
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -84,7 +116,46 @@ class MissionRequest(StrictModel):
     waypoints: list[Position] = Field(min_length=1, max_length=100)
 
 
-def create_app(database_url=None, clock=now, monitor=True):
+Role = Literal["operator", "technician", "administrator"]
+
+
+class LoginRequest(StrictModel):
+    username: str = Field(min_length=3, max_length=50, pattern=r"^[a-z0-9._-]+$")
+    password: str = Field(min_length=12, max_length=200)
+
+
+class UserRequest(LoginRequest):
+    role: Role
+
+
+def password_hash(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    derived = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1)
+    return "scrypt$16384$8$1$" + base64.urlsafe_b64encode(salt).decode() + "$" + base64.urlsafe_b64encode(derived).decode()
+
+
+def password_matches(password: str, encoded: str) -> bool:
+    try:
+        _, n, r, p, salt, expected = encoded.split("$")
+        derived = hashlib.scrypt(
+            password.encode(),
+            salt=base64.urlsafe_b64decode(salt),
+            n=int(n),
+            r=int(r),
+            p=int(p),
+        )
+        return hmac.compare_digest(derived, base64.urlsafe_b64decode(expected))
+    except (ValueError, TypeError):
+        return False
+
+
+def create_app(
+    database_url=None,
+    clock=now,
+    monitor=True,
+    bootstrap_admin_password=None,
+    bootstrap_admin_username=None,
+):
     engine = create_engine(database_url or os.getenv("DATABASE_URL", "sqlite:///./atlas.db"))
     if engine.dialect.name == "sqlite":
         # SQLite has no row locks; serialize transactions for equivalent invariants.
@@ -92,6 +163,7 @@ def create_app(database_url=None, clock=now, monitor=True):
         def sqlite_connect(connection, _):
             connection.isolation_level = None
             connection.execute("PRAGMA busy_timeout=10000")
+            connection.execute("PRAGMA foreign_keys=ON")
 
         @event.listens_for(engine, "begin")
         def sqlite_begin(connection):
@@ -105,6 +177,35 @@ def create_app(database_url=None, clock=now, monitor=True):
                 rid = f"robot-{n}"
                 if not db.get(Robot, rid):
                     db.add(Robot(id=rid, data={"id": rid, "name": f"Robot {n}", "status": "unknown", "last_contact": None, "last_event_at": None, "battery": None, "position": None, "mission_id": None}))
+
+    def seed_admin():
+        with sessions.begin() as db:
+            if db.scalar(select(User.id).limit(1)):
+                return
+            password = bootstrap_admin_password or os.getenv("ATLAS_BOOTSTRAP_ADMIN_PASSWORD")
+            if not password or len(password) < 12:
+                raise RuntimeError(
+                    "No users exist. Set ATLAS_BOOTSTRAP_ADMIN_PASSWORD to at least "
+                    "12 characters before starting ATLAS."
+                )
+            username = bootstrap_admin_username or os.getenv(
+                "ATLAS_BOOTSTRAP_ADMIN_USERNAME", "atlas-admin"
+            )
+            try:
+                credentials = LoginRequest(username=username, password=password)
+            except ValueError as error:
+                raise RuntimeError(
+                    "Bootstrap administrator credentials do not meet the login requirements."
+                ) from error
+            db.add(
+                User(
+                    id=str(uuid4()),
+                    username=credentials.username,
+                    password_hash=password_hash(credentials.password),
+                    role="administrator",
+                    active=True,
+                )
+            )
 
     def incident(db, robot, mission_id, kind, event_id, timestamp):
         key = f"{mission_id}:{kind}" if mission_id else f"{robot.id}:{kind}:{event_id}"
@@ -141,6 +242,7 @@ def create_app(database_url=None, clock=now, monitor=True):
     async def lifespan(app):
         require_current_schema(engine)
         seed_robots()
+        seed_admin()
         task = asyncio.create_task(watchdog()) if monitor else None
         try:
             yield
@@ -153,6 +255,156 @@ def create_app(database_url=None, clock=now, monitor=True):
 
     app = FastAPI(title="ATLAS — Synthetic Fleet API", lifespan=lifespan)
     app.state.check_disconnects = check_disconnects
+
+    def audit(db, actor_id, action, resource_type, resource_id, details=None):
+        db.add(
+            AuditLog(
+                id=str(uuid4()),
+                actor_id=actor_id,
+                action=action,
+                resource_type=resource_type,
+                resource_id=resource_id,
+                occurred_at=clock().isoformat(),
+                details=details or {},
+            )
+        )
+
+    def actor_from_request(request: Request):
+        token = request.cookies.get("atlas_session")
+        if not token:
+            raise HTTPException(401, "Authentication required")
+        token_digest = hashlib.sha256(token.encode()).hexdigest()
+        with sessions.begin() as db:
+            session = db.get(AuthSession, token_digest)
+            if not session or datetime.fromisoformat(session.expires_at) <= clock():
+                if session:
+                    db.delete(session)
+                raise HTTPException(401, "Session expired or invalid")
+            user = db.get(User, session.user_id)
+            if not user or not user.active:
+                raise HTTPException(401, "Account is inactive")
+            return {
+                "id": user.id,
+                "username": user.username,
+                "role": user.role,
+                "token_hash": token_digest,
+                "csrf_hash": session.csrf_hash,
+            }
+
+    def authorize(*roles, csrf=False):
+        def dependency(request: Request):
+            actor = actor_from_request(request)
+            if roles and actor["role"] not in roles:
+                raise HTTPException(403, "This role cannot perform that action")
+            if csrf:
+                supplied = request.headers.get("X-CSRF-Token", "")
+                digest = hashlib.sha256(supplied.encode()).hexdigest()
+                if not supplied or not hmac.compare_digest(digest, actor["csrf_hash"]):
+                    raise HTTPException(403, "CSRF token is missing or invalid")
+            return actor
+
+        return dependency
+
+    any_user = authorize()
+    any_write = authorize("operator", "technician", "administrator", csrf=True)
+    mission_write = authorize("operator", "administrator", csrf=True)
+    admin_read = authorize("administrator")
+    admin_write = authorize("administrator", csrf=True)
+
+    @app.post("/api/auth/login")
+    def login(body: LoginRequest, response: Response):
+        with sessions.begin() as db:
+            user = db.scalar(select(User).where(User.username == body.username))
+            if not user or not user.active or not password_matches(body.password, user.password_hash):
+                raise HTTPException(401, "Invalid username or password")
+            token = secrets.token_urlsafe(32)
+            csrf_token = secrets.token_urlsafe(32)
+            expires = clock() + timedelta(hours=8)
+            db.add(
+                AuthSession(
+                    token_hash=hashlib.sha256(token.encode()).hexdigest(),
+                    user_id=user.id,
+                    csrf_hash=hashlib.sha256(csrf_token.encode()).hexdigest(),
+                    expires_at=expires.isoformat(),
+                )
+            )
+            audit(db, user.id, "auth.login", "user", user.id)
+            response.set_cookie(
+                "atlas_session",
+                token,
+                max_age=8 * 60 * 60,
+                httponly=True,
+                samesite="strict",
+                secure=os.getenv("ATLAS_SECURE_COOKIES") == "1",
+            )
+            return {
+                "user": {"id": user.id, "username": user.username, "role": user.role},
+                "csrf_token": csrf_token,
+            }
+
+    @app.get("/api/auth/me")
+    def me(actor=Depends(any_user)):
+        return {key: actor[key] for key in ("id", "username", "role")}
+
+    @app.post("/api/auth/logout", status_code=204)
+    def logout(response: Response, actor=Depends(any_write)):
+        with sessions.begin() as db:
+            session = db.get(AuthSession, actor["token_hash"])
+            if session:
+                db.delete(session)
+            audit(db, actor["id"], "auth.logout", "user", actor["id"])
+        response.delete_cookie("atlas_session")
+
+    @app.post("/api/users", status_code=201)
+    def create_user(body: UserRequest, actor=Depends(admin_write)):
+        with sessions.begin() as db:
+            if db.scalar(select(User).where(User.username == body.username)):
+                raise HTTPException(409, "Username already exists")
+            user = User(
+                id=str(uuid4()),
+                username=body.username,
+                password_hash=password_hash(body.password),
+                role=body.role,
+                active=True,
+            )
+            db.add(user)
+            audit(db, actor["id"], "user.create", "user", user.id, {"role": user.role})
+            return {"id": user.id, "username": user.username, "role": user.role, "active": True}
+
+    @app.get("/api/users")
+    def users(_actor=Depends(admin_read)):
+        with sessions() as db:
+            return [
+                {"id": user.id, "username": user.username, "role": user.role, "active": user.active}
+                for user in db.scalars(select(User).order_by(User.username))
+            ]
+
+    @app.get("/api/audit-logs")
+    def audit_logs(
+        limit: int = Query(100, ge=1, le=1000),
+        offset: int = Query(0, ge=0),
+        _actor=Depends(admin_read),
+    ):
+        with sessions() as db:
+            rows = db.scalars(
+                select(AuditLog).order_by(AuditLog.occurred_at.desc(), AuditLog.id).limit(limit).offset(offset)
+            )
+            result = []
+            for row in rows:
+                user = db.get(User, row.actor_id) if row.actor_id else None
+                result.append(
+                    {
+                        "id": row.id,
+                        "actor_id": row.actor_id,
+                        "actor_username": user.username if user else "system",
+                        "action": row.action,
+                        "resource_type": row.resource_type,
+                        "resource_id": row.resource_id,
+                        "occurred_at": row.occurred_at,
+                        "details": row.details,
+                    }
+                )
+            return result
 
     def get_record(model, identifier):
         with sessions() as db:
@@ -215,13 +467,14 @@ def create_app(database_url=None, clock=now, monitor=True):
             return [m.data for m in db.scalars(query)]
 
     @app.post("/api/missions", status_code=201)
-    def create_mission(body: MissionRequest):
+    def create_mission(body: MissionRequest, actor=Depends(mission_write)):
         with sessions.begin() as db:
             if not db.get(Robot, body.robot_id):
                 raise HTTPException(404, "Robot not found")
             mid = str(uuid4())
             data = {"id": mid, **body.model_dump(), "status": "pending", "created_at": clock().isoformat(), "started_at": None, "ended_at": None, "execution_step": 0, "completed_waypoints": 0}
             db.add(Mission(id=mid, data=data))
+            audit(db, actor["id"], "mission.create", "mission", mid, {"robot_id": body.robot_id, "waypoint_count": len(body.waypoints)})
             return data
 
     @app.get("/api/missions/{mission_id}")
@@ -229,7 +482,7 @@ def create_app(database_url=None, clock=now, monitor=True):
         return get_record(Mission, mission_id)
 
     @app.post("/api/missions/{mission_id}/approve")
-    def approve(mission_id: str):
+    def approve(mission_id: str, actor=Depends(mission_write)):
         with sessions.begin() as db:
             m = db.get(Mission, mission_id)
             if not m:
@@ -243,10 +496,11 @@ def create_app(database_url=None, clock=now, monitor=True):
                 raise HTTPException(409, "Robot already has a running mission")
             m.data = {**m.data, "status": "running", "started_at": clock().isoformat(), "execution_position": r.data["position"] or {"x": 0.0, "y": 0.0}}
             r.data = {**r.data, "mission_id": m.id}
+            audit(db, actor["id"], "mission.approve", "mission", m.id, {"robot_id": r.id})
             return m.data
 
     @app.post("/api/missions/{mission_id}/cancel")
-    def cancel(mission_id: str, body: CancelRequest):
+    def cancel(mission_id: str, body: CancelRequest, actor=Depends(mission_write)):
         with sessions.begin() as db:
             m = db.get(Mission, mission_id)
             if not m:
@@ -256,6 +510,7 @@ def create_app(database_url=None, clock=now, monitor=True):
             if m.data["status"] not in ("pending", "running"):
                 raise HTTPException(409, "Only pending or running missions can be cancelled")
             m.data = {**m.data, "status": "cancelled", "ended_at": clock().isoformat(), "cancellation_reason": body.reason}
+            audit(db, actor["id"], "mission.cancel", "mission", m.id, {"reason": body.reason})
             return m.data
 
     @app.post("/api/telemetry")
@@ -348,9 +603,9 @@ def create_app(database_url=None, clock=now, monitor=True):
         return get_record(Incident, incident_id)
 
     @app.post("/api/incidents/{incident_id}/investigate")
-    def investigate_incident(incident_id: str):
+    def investigate_incident(incident_id: str, actor=Depends(any_write)):
         """Run a read-only, evidence-grounded investigation."""
-        with sessions() as db:
+        with sessions.begin() as db:
             row = db.get(Incident, incident_id)
             if not row:
                 raise HTTPException(404, "Incident not found")
@@ -363,11 +618,20 @@ def create_app(database_url=None, clock=now, monitor=True):
             event_ids = incident_data.get("event_ids", [])
             evidence = [db.get(Telemetry, event_id) for event_id in event_ids]
             events = [record.data for record in evidence if record is not None]
-            return investigate_records(
+            result = investigate_records(
                 incident_data,
                 mission.data if mission else None,
                 events,
             )
+            audit(
+                db,
+                actor["id"],
+                "incident.investigate",
+                "incident",
+                incident_id,
+                {"confidence": result["confidence"]},
+            )
+            return result
 
     dashboard = Path(__file__).resolve().parents[1] / "dashboard" / "dist"
     if dashboard.is_dir():

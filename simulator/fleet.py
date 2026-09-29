@@ -2,6 +2,7 @@
 import argparse
 import json
 import math
+import os
 import time
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -53,12 +54,25 @@ def prepare_fleet(client):
     return missions
 
 
+def authenticate(client, username, password):
+    if not password:
+        raise RuntimeError("Set ATLAS_OPERATOR_PASSWORD or pass --password")
+    response = client.post(
+        "/api/auth/login",
+        json={"username": username, "password": password},
+    )
+    response.raise_for_status()
+    client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default="http://127.0.0.1:8000")
     parser.add_argument("--ticks", type=int, default=10)
     parser.add_argument("--interval", type=float, default=5)
     parser.add_argument("--output", default="events.jsonl")
+    parser.add_argument("--username", default=os.getenv("ATLAS_OPERATOR_USERNAME", "atlas-admin"))
+    parser.add_argument("--password", default=os.getenv("ATLAS_OPERATOR_PASSWORD"))
     args = parser.parse_args()
     if args.ticks < 1:
         parser.error("--ticks must be positive")
@@ -67,6 +81,7 @@ def main():
     run_id = str(uuid4())
     with httpx.Client(base_url=args.url, timeout=10) as client, open(args.output, "a") as output:
         try:
+            authenticate(client, args.username, args.password)
             missions = prepare_fleet(client)
         except (RuntimeError, httpx.HTTPError) as error:
             raise SystemExit(f"Cannot start fleet: {error}") from error

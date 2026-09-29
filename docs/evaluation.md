@@ -14,7 +14,7 @@ All 120 controlled cases pass the current contract, so tool selection and requir
 
 ## Initial local verification
 
-Python 3.13: 168 tests pass locally, including 120 investigation evaluation cases and four migration checks. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL verification runs in GitHub Actions.
+Python 3.13: 175 tests pass locally, including 120 investigation evaluation cases, four migration checks, authentication/authorization coverage, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL verification runs in GitHub Actions.
 
 ## Reliability review
 
@@ -33,3 +33,7 @@ Seven additional API/worker tests cover ordered completion, restarting from comm
 ## Migration validation
 
 Four tests verify fresh schema creation, metadata drift detection, downgrade/reapply behavior, rejection of an unmigrated database, and adoption of a legacy schema without losing records. The dashboard integration server also migrates its temporary SQLite database before startup. GitHub Actions runs a standalone migration smoke test and exercises the application suite against PostgreSQL 17.
+
+## Authentication validation
+
+Tests cover missing authentication, missing CSRF protection, administrator user creation without credential disclosure, technician mission-write denial, authenticated incident investigation, audit attribution, eight-hour session expiry, and simulator login. Six browser workflows include administrator user creation, audit-history display, and sign-out. Authentication is local-only and does not claim readiness for an internet-facing deployment.
