@@ -16,6 +16,7 @@ with tempfile.TemporaryDirectory(prefix='atlas-browser-tests-') as directory:
             database_url,
             monitor=False,
             bootstrap_admin_password='atlas-browser-admin-password',
+            telemetry_api_key='atlas-browser-bridge-key-1234567890',
         ),
         host='127.0.0.1',
         port=8011,

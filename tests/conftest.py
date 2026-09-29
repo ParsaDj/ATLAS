@@ -20,6 +20,7 @@ from apps.api.migrations import upgrade_database
 
 POSTGRES_URL = os.getenv('ATLAS_TEST_POSTGRES_URL')
 TEST_ADMIN_PASSWORD = 'atlas-test-admin-password'
+TEST_BRIDGE_KEY = 'atlas-test-bridge-key-1234567890'
 
 
 @pytest.fixture(params=['sqlite', 'postgres'] if POSTGRES_URL else ['sqlite'])
@@ -48,8 +49,10 @@ def system(database_url):
         clock=lambda: clock[0],
         monitor=False,
         bootstrap_admin_password=TEST_ADMIN_PASSWORD,
+        telemetry_api_key=TEST_BRIDGE_KEY,
     )
     with TestClient(app) as client:
+        client.headers['X-ATLAS-Bridge-Key'] = TEST_BRIDGE_KEY
         response = client.post(
             '/api/auth/login',
             json={'username': 'atlas-admin', 'password': TEST_ADMIN_PASSWORD},

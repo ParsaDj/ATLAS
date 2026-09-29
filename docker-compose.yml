@@ -18,6 +18,7 @@ services:
       DATABASE_URL: postgresql+psycopg://atlas:atlas@db:5432/atlas
       ATLAS_BOOTSTRAP_ADMIN_USERNAME: atlas-admin
       ATLAS_BOOTSTRAP_ADMIN_PASSWORD: atlas-local-demo-password
+      ATLAS_TELEMETRY_API_KEY: atlas-local-demo-bridge-key-123456
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
       interval: 5s
@@ -35,6 +36,7 @@ services:
     environment:
       ATLAS_OPERATOR_USERNAME: atlas-admin
       ATLAS_OPERATOR_PASSWORD: atlas-local-demo-password
+      ATLAS_TELEMETRY_API_KEY: atlas-local-demo-bridge-key-123456
     depends_on:
       api:
         condition: service_healthy
@@ -42,6 +44,8 @@ services:
     build: .
     profiles: ["operations"]
     command: ["python", "-m", "simulator.worker", "--url", "http://api:8000"]
+    environment:
+      ATLAS_TELEMETRY_API_KEY: atlas-local-demo-bridge-key-123456
     depends_on:
       api:
         condition: service_healthy

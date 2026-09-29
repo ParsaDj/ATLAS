@@ -4,7 +4,7 @@ Independent robotics and AI portfolio project. Uses five simulated robots and en
 
 ## Current implementation
 
-ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, user administration, and audit history. ROS 2 integration, maintenance tickets, and an optional hosted-model adapter remain future milestones.
+ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, user administration, and audit history. A transport-independent robotics bridge core adds machine authentication, mission polling, stable ROS event IDs, and durable offline telemetry buffering. The ROS 2 node, Gazebo environment, maintenance tickets, and optional hosted-model adapter remain future milestones.
 
 ## Run locally on macOS
 
@@ -16,6 +16,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 alembic upgrade head
 export ATLAS_BOOTSTRAP_ADMIN_PASSWORD='choose-at-least-12-characters'
+export ATLAS_TELEMETRY_API_KEY='choose-a-long-random-bridge-key'
 uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -26,6 +27,7 @@ Open http://127.0.0.1:8000/docs for the interactive API. In a second terminal:
 ```sh
 source .venv/bin/activate
 export ATLAS_OPERATOR_PASSWORD='choose-at-least-12-characters'
+export ATLAS_TELEMETRY_API_KEY='choose-a-long-random-bridge-key'
 python -m simulator.fleet
 ```
 
@@ -77,7 +79,7 @@ For frontend development, run the API on port 8000 and `pnpm dev` from `apps/das
 The dashboard displays up to ten missions or incidents per page and twenty recent events per detail view. Triggering evidence is retrieved separately by event ID, so older fault evidence remains accessible. Unavailable evidence is shown as unavailable. API failures preserve the last successful snapshot and show a stale-data warning. To execute dashboard-created missions, start the operations worker in another terminal:
 
 ```sh
-.venv/bin/python -m simulator.worker
+ATLAS_TELEMETRY_API_KEY='choose-a-long-random-bridge-key' .venv/bin/python -m simulator.worker
 ```
 
 It waits for approvals, follows each waypoint in order (one simulation unit per tick, default two-second interval), persists progress, and sends idle heartbeats after completion or cancellation. The dashboard shows reached waypoints. This healthy operations mode reports a fixed synthetic 100% battery and no sensor fault; use the separate `simulator.fleet` scenario to demonstrate faults. **Do not run both producers against the same facility at once.**
@@ -113,6 +115,12 @@ Tests use isolated SQLite databases and a controllable clock, including a full f
 
 Current verification totals are recorded in `docs/evaluation.md`. The backend GitHub Actions job runs against both SQLite and PostgreSQL 17, and the dashboard job builds the UI and runs browser workflows. Docker Compose itself remains unverified locally because Docker is unavailable.
 
+## Robotics bridge preparation
+
+`robotics/atlas_bridge` is the ROS-independent portion of the integration. It polls the approved mission for one robot, authenticates telemetry with `X-ATLAS-Bridge-Key`, assigns replay-safe IDs from the ROS timestamp and sequence, and writes every observation to a SQLite outbox before delivery. Temporary network, authentication, throttling, and server failures retain events for a later flush. Permanent validation failures move to a rejected-event table so a poisoned record cannot block newer observations.
+
+This core runs and is tested on macOS. The Ubuntu phase will wrap it with an `rclpy` node that subscribes to odometry, battery, and diagnostics topics and sends approved waypoints to Nav2. See `docs/ros2-integration.md` for the environment and topic contract.
+
 Dashboard workflow tests use Chromium and a fresh temporary SQLite database on port 8011; they never touch `atlas.db`:
 
 ```sh
@@ -130,6 +138,7 @@ Build the dashboard first. The six tests cover authentication, incident evidence
 - `apps/ai_agent/`: read-only evidence engine and approved troubleshooting guides.
 - `apps/dashboard/`: React/TypeScript customer dashboard and browser tests.
 - `simulator/fleet.py`: reproducible synthetic fleet and JSONL event output.
+- `robotics/atlas_bridge/`: reliable transport core for the ROS 2 adapter.
 - `tests/test_api.py`: workflow and reliability tests.
 - `tests/evaluations/`: reproducible synthetic incident evaluation dataset.
 - `docs/architecture.md`: contracts, state handling, and design tradeoffs.

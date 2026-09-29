@@ -15,14 +15,24 @@ def test_simulator_authentication_installs_csrf_header():
         return httpx.Response(200, json={'csrf_token': 'csrf-value'})
 
     with httpx.Client(transport=httpx.MockTransport(handler), base_url='http://test') as client:
-        authenticate(client, 'atlas-admin', 'demo-password')
+        authenticate(client, 'atlas-admin', 'demo-password', 'bridge-key')
         assert client.headers['X-CSRF-Token'] == 'csrf-value'
+        assert client.headers['X-ATLAS-Bridge-Key'] == 'bridge-key'
 
 
 def test_simulator_requires_operator_password():
     with httpx.Client(base_url='http://test') as client:
         with pytest.raises(RuntimeError, match='ATLAS_OPERATOR_PASSWORD'):
-            authenticate(client, 'atlas-admin', None)
+            authenticate(client, 'atlas-admin', None, 'bridge-key')
+
+
+def test_simulator_requires_bridge_key():
+    def handler(_request):
+        return httpx.Response(200, json={'csrf_token': 'csrf-value'})
+
+    with httpx.Client(transport=httpx.MockTransport(handler), base_url='http://test') as client:
+        with pytest.raises(RuntimeError, match='ATLAS_TELEMETRY_API_KEY'):
+            authenticate(client, 'atlas-admin', 'demo-password', None)
 
 
 def test_retry_uses_identical_event():

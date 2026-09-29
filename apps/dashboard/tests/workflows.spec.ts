@@ -26,6 +26,9 @@ test.beforeAll(async ({ request }) => {
     expect(
       (
         await request.post("/api/telemetry", {
+          headers: {
+            "X-ATLAS-Bridge-Key": "atlas-browser-bridge-key-1234567890",
+          },
           data: {
             event_id: `browser-seed-${n}`,
             robot_id: `robot-${n}`,
@@ -209,7 +212,14 @@ test("approved dashboard mission executes in a real worker process", async ({
       "--interval",
       "0.1",
     ],
-    { cwd: resolve("../.."), stdio: "ignore" },
+    {
+      cwd: resolve("../.."),
+      stdio: "ignore",
+      env: {
+        ...process.env,
+        ATLAS_TELEMETRY_API_KEY: "atlas-browser-bridge-key-1234567890",
+      },
+    },
   );
   let workerError: Error | undefined;
   worker.on("error", (error) => {

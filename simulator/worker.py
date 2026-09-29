@@ -6,6 +6,7 @@ workers and lost acknowledgements. Motion is synthetic: one unit per tick.
 import argparse
 import logging
 import math
+import os
 import time
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -59,11 +60,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--url', default='http://127.0.0.1:8000')
     parser.add_argument('--interval', type=float, default=2)
+    parser.add_argument('--bridge-key', default=os.getenv('ATLAS_TELEMETRY_API_KEY'))
     args = parser.parse_args()
     if not math.isfinite(args.interval) or not 0.1 <= args.interval <= 5:
         parser.error('--interval must be between 0.1 and 5 seconds')
     logging.basicConfig(level=logging.INFO, format='%(message)s')
+    if not args.bridge_key:
+        parser.error('set ATLAS_TELEMETRY_API_KEY or pass --bridge-key')
     with httpx.Client(base_url=args.url, timeout=5) as client:
+        client.headers['X-ATLAS-Bridge-Key'] = args.bridge_key
         logging.info('ATLAS worker ready. Approve a mission in the dashboard. Ctrl+C stops the worker.')
         try:
             while True:
