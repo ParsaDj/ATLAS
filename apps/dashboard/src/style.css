@@ -246,6 +246,91 @@ main {
   margin: 0 13px;
   color: #b3bdb4;
 }
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.topbar-actions button {
+  padding: 6px 10px;
+}
+.login-page {
+  min-height: 100vh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(145deg, #12221d, #29473b);
+}
+.login-card {
+  width: min(430px, 100%);
+  display: grid;
+  gap: 18px;
+  padding: 38px;
+  border-radius: 12px;
+  background: #fbfcfa;
+  box-shadow: 0 25px 70px #07120d66;
+}
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: #1f3a30;
+  font-family: "Manrope", sans-serif;
+  font-weight: 800;
+  letter-spacing: 4px;
+  font-size: 21px;
+}
+.login-card p,
+.login-card small {
+  color: #6f7f76;
+}
+.login-card label,
+.admin-form label {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.login-card input,
+.admin-form input,
+.admin-form select {
+  width: 100%;
+  border: 1px solid #ccd6cf;
+  border-radius: 7px;
+  padding: 11px;
+  background: white;
+}
+.auth-loading {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: #51645a;
+}
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.7fr) minmax(500px, 1.5fr);
+  gap: 22px;
+}
+.admin-form {
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+  border-bottom: 1px solid #e1e7e2;
+}
+.user-list {
+  padding: 10px 20px 20px;
+}
+.user-list > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #edf0ed;
+}
+.audit-panel code {
+  white-space: nowrap;
+}
 .environment {
   font-size: 9px;
   border: 1px solid #d4dfd1;
@@ -952,6 +1037,9 @@ dd {
     grid-template-columns: repeat(2, 1fr);
   }
   .overview-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-grid {
     grid-template-columns: 1fr;
   }
   .robot-grid {

@@ -19,6 +19,7 @@ from apps.api.migrations import upgrade_database
 
 
 POSTGRES_URL = os.getenv('ATLAS_TEST_POSTGRES_URL')
+TEST_ADMIN_PASSWORD = 'atlas-test-admin-password'
 
 
 @pytest.fixture(params=['sqlite', 'postgres'] if POSTGRES_URL else ['sqlite'])
@@ -42,6 +43,17 @@ def database_url(request, tmp_path):
 def system(database_url):
     clock = [datetime(2026, 10, 1, tzinfo=timezone.utc)]
     upgrade_database(database_url)
-    app = create_app(database_url, clock=lambda: clock[0], monitor=False)
+    app = create_app(
+        database_url,
+        clock=lambda: clock[0],
+        monitor=False,
+        bootstrap_admin_password=TEST_ADMIN_PASSWORD,
+    )
     with TestClient(app) as client:
+        response = client.post(
+            '/api/auth/login',
+            json={'username': 'atlas-admin', 'password': TEST_ADMIN_PASSWORD},
+        )
+        assert response.status_code == 200
+        client.headers['X-CSRF-Token'] = response.json()['csrf_token']
         yield client, clock, app

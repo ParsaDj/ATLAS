@@ -4,7 +4,7 @@ from alembic import command
 from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import Session
 
-from apps.api.main import Base, Robot
+from apps.api.main import Base, Incident, Mission, Robot, Telemetry
 from apps.api.migrations import (
     alembic_config,
     require_current_schema,
@@ -12,8 +12,16 @@ from apps.api.migrations import (
 )
 
 
-REVISION = "20260928_0001"
-DOMAIN_TABLES = {"robots", "missions", "telemetry", "incidents"}
+REVISION = "20260928_0002"
+DOMAIN_TABLES = {
+    "robots",
+    "missions",
+    "telemetry",
+    "incidents",
+    "users",
+    "auth_sessions",
+    "audit_logs",
+}
 
 
 def sqlite_url(path: Path) -> str:
@@ -69,7 +77,15 @@ def test_initial_migration_can_downgrade_and_reapply(tmp_path):
 def test_initial_migration_adopts_legacy_schema_without_data_loss(tmp_path):
     url = sqlite_url(tmp_path / "legacy.db")
     engine = create_engine(url)
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(
+        engine,
+        tables=[
+            Robot.__table__,
+            Mission.__table__,
+            Telemetry.__table__,
+            Incident.__table__,
+        ],
+    )
     robot_data = {
         "id": "robot-existing",
         "name": "Existing robot",

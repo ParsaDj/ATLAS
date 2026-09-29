@@ -11,4 +11,12 @@ from apps.api.migrations import upgrade_database
 with tempfile.TemporaryDirectory(prefix='atlas-browser-tests-') as directory:
     database_url = f'sqlite:///{directory}/test.db'
     upgrade_database(database_url)
-    uvicorn.run(create_app(database_url, monitor=False), host='127.0.0.1', port=8011)
+    uvicorn.run(
+        create_app(
+            database_url,
+            monitor=False,
+            bootstrap_admin_password='atlas-browser-admin-password',
+        ),
+        host='127.0.0.1',
+        port=8011,
+    )

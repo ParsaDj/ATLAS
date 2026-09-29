@@ -4,7 +4,7 @@ Independent robotics and AI portfolio project. Uses five simulated robots and en
 
 ## Current implementation
 
-ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission creation/approval/cancellation, waypoint progress, incident evidence, event history, and read-only incident investigation. ROS 2 integration, tickets, authentication, audit logging, and an optional hosted-model adapter remain future milestones.
+ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, user administration, and audit history. ROS 2 integration, maintenance tickets, and an optional hosted-model adapter remain future milestones.
 
 ## Run locally on macOS
 
@@ -15,15 +15,17 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 alembic upgrade head
+export ATLAS_BOOTSTRAP_ADMIN_PASSWORD='choose-at-least-12-characters'
 uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-SQLite is the default and `alembic upgrade head` creates or upgrades `atlas.db`. The API seeds the five synthetic robots after the schema is current; it never creates or alters tables. No Docker, paid model, or robotics installation is needed. Use one API worker for this demo.
+SQLite is the default and `alembic upgrade head` creates or upgrades `atlas.db`. On the first authenticated startup, `ATLAS_BOOTSTRAP_ADMIN_PASSWORD` creates the local `atlas-admin` account; later startups keep the stored account and do not reuse the environment value. The API seeds the five synthetic robots after the schema is current; it never creates or alters tables. No Docker, paid model, or robotics installation is needed. Use one API worker for this demo.
 
 Open http://127.0.0.1:8000/docs for the interactive API. In a second terminal:
 
 ```sh
 source .venv/bin/activate
+export ATLAS_OPERATOR_PASSWORD='choose-at-least-12-characters'
 python -m simulator.fleet
 ```
 
@@ -55,7 +57,7 @@ List missions with `GET /api/missions?robot_id=robot-3&status=failed`, retrieve 
 
 ## Operations dashboard
 
-The dashboard uses the actual API and refreshes every five seconds. It includes fleet status and last-reported positions, mission proposals and approval, cancellation with a reason, incident details, and direct access to triggering event records. Northstar Industries is a fictional customer. The position view is a synthetic coordinate plot, not a surveyed facility map.
+The dashboard uses the actual API and refreshes every five seconds. Sign-in uses an HttpOnly server-side session and a per-session CSRF token. Administrators manage local operator, technician, and administrator accounts and can review the audit history. Operators and administrators create, approve, and cancel missions; all authenticated roles can investigate incidents. Northstar Industries is a fictional customer. The position view is a synthetic coordinate plot, not a surveyed facility map.
 
 Requires Node.js 22.12+ and pnpm 11.25.0. Install pnpm using `npm install --global pnpm@11.25.0`, then from the repository root:
 
@@ -119,7 +121,7 @@ pnpm exec playwright install chromium
 ATLAS_TEST_PYTHON=../../.venv/bin/python pnpm test:e2e
 ```
 
-Build the dashboard first. The five tests cover incident evidence and linked missions, mission creation/approval/cancellation, API outage/recovery, mobile navigation, and a dashboard-approved mission completing through a real worker process. CI also runs these workflows against a real API (SQLite).
+Build the dashboard first. The six tests cover authentication, incident evidence, mission creation/approval/cancellation, audit administration, API outage/recovery, mobile navigation, and a dashboard-approved mission completing through a real worker process. CI also runs these workflows against a real API (SQLite).
 
 ## Project map
 

@@ -1,14 +1,27 @@
 import { test, expect } from "@playwright/test";
 
+const password = "atlas-browser-admin-password";
+let csrf = "";
+
 test.beforeAll(async ({ request }) => {
+  const login = await request.post("/api/auth/login", {
+    data: { username: "atlas-admin", password },
+  });
+  expect(login.ok()).toBeTruthy();
+  csrf = (await login.json()).csrf_token;
   for (let n = 1; n <= 5; n++) {
     const created = await request.post("/api/missions", {
       data: { robot_id: `robot-${n}`, waypoints: [{ x: 7, y: n }] },
+      headers: { "X-CSRF-Token": csrf },
     });
     expect(created.ok()).toBeTruthy();
     const mission = await created.json();
     expect(
-      (await request.post(`/api/missions/${mission.id}/approve`)).ok(),
+      (
+        await request.post(`/api/missions/${mission.id}/approve`, {
+          headers: { "X-CSRF-Token": csrf },
+        })
+      ).ok(),
     ).toBeTruthy();
     expect(
       (
@@ -27,6 +40,16 @@ test.beforeAll(async ({ request }) => {
       ).ok(),
     ).toBeTruthy();
   }
+});
+
+test.beforeEach(async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("Username").fill("atlas-admin");
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Operations overview" }),
+  ).toBeVisible();
 });
 
 test("operator follows failed mission and triggering telemetry", async ({
@@ -142,6 +165,30 @@ test("mobile navigation keeps incident and mission workflows accessible", async 
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(390);
+});
+
+test("administrator creates a user and reviews the audit trail", async ({
+  page,
+}) => {
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Administration" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Security & audit" }),
+  ).toBeVisible();
+  await page.getByLabel("Username").fill("browser-operator");
+  await page.getByLabel("Temporary password").fill("browser-operator-password");
+  await page.getByLabel("Role").selectOption("operator");
+  await page.getByRole("button", { name: "Create user" }).click();
+  await expect(
+    page.getByText("browser-operator", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("user create", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Operations sign in" }),
+  ).toBeVisible();
 });
 
 test("approved dashboard mission executes in a real worker process", async ({

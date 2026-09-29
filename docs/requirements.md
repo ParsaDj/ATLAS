@@ -12,6 +12,7 @@ ATLAS supports a fictional single facility, one customer, and five synthetic ins
 - Deterministic read-only incident investigation with approved guide retrieval, citations, and uncertainty.
 - A reproducible 120-scenario investigation evaluation dataset.
 - Versioned Alembic migrations for fresh and legacy SQLite/PostgreSQL databases.
+- Local role-based authentication, CSRF protection, user administration, and audit history.
 - Local SQLite setup, PostgreSQL Compose configuration, and automated workflow tests.
 
 ## Remaining roadmap from the project blueprint
@@ -19,7 +20,7 @@ ATLAS supports a fictional single facility, one customer, and five synthetic ins
 1. Harden the synthetic fleet/backend: normalize frequently queried fields and add foreign keys and indexes.
 2. Add an optional hosted-model renderer and versioned prompts while preserving the current evidence contract.
 3. Integrate ROS 2/Gazebo/Nav2, starting with one robot.
-4. Add authenticated approvals, maintenance tickets, rescheduling, reports, audit logs, and recovery testing.
+4. Add maintenance tickets, rescheduling, reports, and recovery testing.
 5. Prepare a reproducible portfolio release and recorded demo.
 
 Budget: 5–7 hours/week, no hardware required. Milestones 1–3 form the MVP. Use only synthetic or appropriately licensed public material. Choose a license and publish the repository when ready; neither publication nor an open-source license is implied by this initial local scaffold.

@@ -3,7 +3,26 @@ import json
 import httpx
 import pytest
 
-from simulator.fleet import prepare_fleet, send_event
+from simulator.fleet import authenticate, prepare_fleet, send_event
+
+
+def test_simulator_authentication_installs_csrf_header():
+    def handler(request):
+        assert json.loads(request.content) == {
+            'username': 'atlas-admin',
+            'password': 'demo-password',
+        }
+        return httpx.Response(200, json={'csrf_token': 'csrf-value'})
+
+    with httpx.Client(transport=httpx.MockTransport(handler), base_url='http://test') as client:
+        authenticate(client, 'atlas-admin', 'demo-password')
+        assert client.headers['X-CSRF-Token'] == 'csrf-value'
+
+
+def test_simulator_requires_operator_password():
+    with httpx.Client(base_url='http://test') as client:
+        with pytest.raises(RuntimeError, match='ATLAS_OPERATOR_PASSWORD'):
+            authenticate(client, 'atlas-admin', None)
 
 
 def test_retry_uses_identical_event():
