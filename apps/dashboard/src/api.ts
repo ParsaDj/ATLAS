@@ -19,6 +19,9 @@ export type Mission = {
   started_at: string | null;
   ended_at: string | null;
   cancellation_reason?: string;
+  source_incident_id?: string;
+  replacement_for_mission_id?: string;
+  proposed_by?: string;
 };
 export type Incident = {
   id: string;
