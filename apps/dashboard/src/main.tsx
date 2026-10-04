@@ -12,6 +12,7 @@ import {
   type User,
   type AuditLog,
   type LoginResult,
+  type Position,
   rememberCsrf,
 } from "./api";
 import "./style.css";
@@ -1087,6 +1088,8 @@ function Details({
   const [ticketSummary, setTicketSummary] = useState("");
   const [technician, setTechnician] = useState("");
   const [resolution, setResolution] = useState("");
+  const [replacementWaypoints, setReplacementWaypoints] = useState<Position[]>([]);
+  const [replacementSourceId, setReplacementSourceId] = useState("");
   const [investigation, setInvestigation] = useState<Investigation | null>(
     null,
   );
@@ -1111,6 +1114,24 @@ function Details({
       : null,
     revision,
   );
+  const sourceMission = useResource<Mission>(
+    incident?.mission_id
+      ? `/api/missions/${encodeURIComponent(incident.mission_id)}`
+      : null,
+    revision,
+  );
+  const replacements = useResource<Mission[]>(
+    incident
+      ? `/api/missions?source_incident_id=${encodeURIComponent(incident.id)}`
+      : null,
+    revision,
+  );
+  useEffect(() => {
+    if (sourceMission.data && sourceMission.data.id !== replacementSourceId) {
+      setReplacementWaypoints(sourceMission.data.waypoints.map((point) => ({ ...point })));
+      setReplacementSourceId(sourceMission.data.id);
+    }
+  }, [sourceMission.data, replacementSourceId]);
   async function action(name: string) {
     setBusy(true);
     setError("");
@@ -1205,6 +1226,35 @@ function Details({
       setBusy(false);
     }
   }
+  async function proposeReplacement() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/incidents/${selection.id}/replacement-missions`, {
+        method: "POST",
+        body: JSON.stringify({ waypoints: replacementWaypoints }),
+      });
+      setMessage("Replacement mission proposed for separate approval.");
+      onChange();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function approveReplacement(id: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/missions/${id}/approve`, { method: "POST" });
+      setMessage("Replacement mission approved and ready for execution.");
+      onChange();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <Modal
       title={
@@ -1286,6 +1336,16 @@ function Details({
                 }
               >
                 Open linked mission →
+              </button>
+            )}
+            {mission?.source_incident_id && (
+              <button
+                className="wide-link"
+                onClick={() =>
+                  onSelect({ kind: "incidents", id: mission.source_incident_id! })
+                }
+              >
+                Open source incident →
               </button>
             )}
             {mission && (
@@ -1380,6 +1440,93 @@ function Details({
                 >
                   Download incident report ↓
                 </button>
+                <h4>Replacement mission</h4>
+                {replacements.error && (
+                  <div role="alert" className="error">
+                    Replacement missions unavailable: {replacements.error}
+                  </div>
+                )}
+                {replacements.data?.length ? (
+                  replacements.data.map((replacement) => (
+                    <section
+                      className="ticket-card"
+                      aria-label="Replacement mission"
+                      key={replacement.id}
+                    >
+                      <div className="ticket-heading">
+                        <strong>Replacement inspection</strong>
+                        <Badge status={replacement.status} />
+                      </div>
+                      <p>
+                        {replacement.waypoints.length} waypoints · proposed by{" "}
+                        {replacement.proposed_by}
+                      </p>
+                      <button
+                        onClick={() =>
+                          onSelect({ kind: "missions", id: replacement.id })
+                        }
+                      >
+                        Open replacement mission →
+                      </button>
+                      {replacement.status === "pending" && role !== "technician" && (
+                        <button
+                          className="primary"
+                          disabled={busy}
+                          onClick={() => void approveReplacement(replacement.id)}
+                        >
+                          Approve replacement mission
+                        </button>
+                      )}
+                    </section>
+                  ))
+                ) : sourceMission.data?.status === "failed" && role !== "technician" ? (
+                  <form
+                    className="ticket-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void proposeReplacement();
+                    }}
+                  >
+                    <p>
+                      Review or edit the failed mission route before proposing a replacement.
+                    </p>
+                    {replacementWaypoints.map((point, index) => (
+                      <div className="waypoint" key={index}>
+                        <span>{index + 1}</span>
+                        {(["x", "y"] as const).map((axis) => (
+                          <label key={axis}>
+                            {axis.toUpperCase()}
+                            <input
+                              aria-label={`Replacement waypoint ${index + 1} ${axis.toUpperCase()}`}
+                              type="number"
+                              step="any"
+                              required
+                              value={point[axis]}
+                              onChange={(event) =>
+                                setReplacementWaypoints((current) =>
+                                  current.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, [axis]: Number(event.target.value) }
+                                      : item,
+                                  ),
+                                )
+                              }
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    ))}
+                    <button
+                      disabled={busy || replacementWaypoints.length === 0}
+                    >
+                      Propose replacement mission
+                    </button>
+                  </form>
+                ) : replacements.data ? (
+                  <p className="notice">No replacement mission is available.</p>
+                ) : (
+                  <p>Loading replacement workflow…</p>
+                )}
                 <h4>Evidence-based investigation</h4>
                 {!investigation ? (
                   <button

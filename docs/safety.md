@@ -8,6 +8,8 @@ AI investigation output never creates maintenance work. An operator or administr
 
 Downloaded reports escape stored values before rendering and clearly label investigation findings, confidence, limitations, and citations. They are authenticated and audited, but remain synthetic operational summaries rather than safety certifications or maintenance authorizations.
 
+Investigation output cannot reschedule a robot. Replacement missions require an authenticated operator or administrator to submit an explicit waypoint proposal and a separate approval transition before execution. The server validates the failed source mission and blocks duplicate active replacements.
+
 The incident investigator has read-only access to API-supplied telemetry, mission records, and approved local documentation. It cites record and document identifiers, expresses uncertainty, and treats missing referenced evidence as insufficient. Its tool trace contains only record retrieval and document retrieval operations. It has no database connection, write tools, ticket access, mission transition access, or robot control path.
 
 Ticket creation and rescheduling require authenticated server-side approval before those capabilities are added. A future language model renderer must preserve the same server-enforced evidence and authorization boundary. No model receives direct motor controls or the ability to override safety rules.

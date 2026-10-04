@@ -128,6 +128,10 @@ class MissionRequest(StrictModel):
     waypoints: list[Position] = Field(min_length=1, max_length=100)
 
 
+class ReplacementMissionRequest(StrictModel):
+    waypoints: list[Position] = Field(min_length=1, max_length=100)
+
+
 Role = Literal["operator", "technician", "administrator"]
 
 
@@ -502,6 +506,64 @@ def create_app(
             )
             return {**data, "assigned_technician": assigned.username}
 
+    @app.post("/api/incidents/{incident_id}/replacement-missions", status_code=201)
+    def propose_replacement_mission(
+        incident_id: str,
+        body: ReplacementMissionRequest,
+        actor=Depends(mission_write),
+    ):
+        with sessions.begin() as db:
+            incident_row = db.scalar(
+                select(Incident).where(Incident.id == incident_id).with_for_update()
+            )
+            if not incident_row:
+                raise HTTPException(404, "Incident not found")
+            source_id = incident_row.data.get("mission_id")
+            source = db.get(Mission, source_id) if source_id else None
+            if not source or source.data["status"] != "failed":
+                raise HTTPException(409, "Replacement requires a failed source mission")
+            existing = list(
+                db.scalars(
+                    select(Mission).where(
+                        Mission.data["source_incident_id"].as_string() == incident_id
+                    )
+                )
+            )
+            if any(
+                mission.data["status"] in ("pending", "running", "completed")
+                for mission in existing
+            ):
+                raise HTTPException(409, "Incident already has an active replacement")
+            mission_id = str(uuid4())
+            data = {
+                "id": mission_id,
+                "robot_id": source.data["robot_id"],
+                "waypoints": [point.model_dump() for point in body.waypoints],
+                "status": "pending",
+                "created_at": clock().isoformat(),
+                "started_at": None,
+                "ended_at": None,
+                "execution_step": 0,
+                "completed_waypoints": 0,
+                "source_incident_id": incident_id,
+                "replacement_for_mission_id": source.id,
+                "proposed_by": actor["username"],
+            }
+            db.add(Mission(id=mission_id, data=data))
+            audit(
+                db,
+                actor["id"],
+                "mission.replacement_propose",
+                "mission",
+                mission_id,
+                {
+                    "source_incident_id": incident_id,
+                    "replacement_for_mission_id": source.id,
+                    "waypoint_count": len(body.waypoints),
+                },
+            )
+            return data
+
     @app.get("/api/tickets")
     def tickets(
         incident_id: str | None = None,
@@ -654,6 +716,7 @@ def create_app(
     @app.get("/api/missions")
     def missions(robot_id: str | None = None,
                  status: Literal["pending", "running", "completed", "failed", "cancelled"] | None = None,
+                 source_incident_id: str | None = None,
                  limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0)):
         with sessions() as db:
             query = select(Mission)
@@ -661,6 +724,11 @@ def create_app(
                 query = query.where(Mission.data["robot_id"].as_string() == robot_id)
             if status is not None:
                 query = query.where(Mission.data["status"].as_string() == status)
+            if source_incident_id is not None:
+                query = query.where(
+                    Mission.data["source_incident_id"].as_string()
+                    == source_incident_id
+                )
             query = query.order_by(Mission.data["created_at"].as_string().desc(), Mission.id).limit(limit).offset(offset)
             return [m.data for m in db.scalars(query)]
 
@@ -694,7 +762,12 @@ def create_app(
                 raise HTTPException(409, "Robot already has a running mission")
             m.data = {**m.data, "status": "running", "started_at": clock().isoformat(), "execution_position": r.data["position"] or {"x": 0.0, "y": 0.0}}
             r.data = {**r.data, "mission_id": m.id}
-            audit(db, actor["id"], "mission.approve", "mission", m.id, {"robot_id": r.id})
+            action = (
+                "mission.replacement_approve"
+                if m.data.get("source_incident_id")
+                else "mission.approve"
+            )
+            audit(db, actor["id"], action, "mission", m.id, {"robot_id": r.id})
             return m.data
 
     @app.post("/api/missions/{mission_id}/cancel")
