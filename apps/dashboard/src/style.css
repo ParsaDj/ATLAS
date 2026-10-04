@@ -14,7 +14,13 @@ body {
 }
 button,
 input,
-select {
+select,
+textarea {
+  font: inherit;
+}
+textarea {
+  min-height: 88px;
+  resize: vertical;
   font: inherit;
 }
 button,
@@ -885,6 +891,30 @@ dd {
 .cancel-form button {
   margin-top: 12px;
   color: #aa7450;
+}
+.ticket-card {
+  border: 1px solid #dce6d4;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fbfcf8;
+}
+.ticket-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+.ticket-card p {
+  font-size: 12px;
+  line-height: 1.7;
+}
+.ticket-form {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #dce6d4;
+  border-radius: 8px;
+  background: #fbfcf8;
 }
 .wide-link {
   width: 100%;

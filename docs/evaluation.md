@@ -14,7 +14,7 @@ All 120 controlled cases pass the current contract, so tool selection and requir
 
 ## Initial local verification
 
-Python 3.13: 188 tests pass locally, including 120 investigation evaluation cases, four migration checks, authentication/authorization coverage, bridge authentication, durable outbox and Nav2 mission-reconciliation behavior, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL verification runs in GitHub Actions.
+Python 3.13: 193 tests pass locally, including 120 investigation evaluation cases, four migration checks, authentication/authorization and maintenance-ticket coverage, bridge authentication, durable outbox and Nav2 mission-reconciliation behavior, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL verification runs in GitHub Actions.
 
 ## Reliability review
 
