@@ -2,7 +2,7 @@ from apps.ai_agent.service import investigate, retrieve_guides
 from simulator.fleet import sample
 
 
-def create_incident(system, robot, *, sensor="ok", battery=80):
+def create_incident(system, robot, *, sensor="ok", navigation="ok", battery=80):
     client, clock, _ = system
     created = client.post(
         "/api/missions",
@@ -11,6 +11,7 @@ def create_incident(system, robot, *, sensor="ok", battery=80):
     client.post(f"/api/missions/{created['id']}/approve")
     body = sample(robot, created["id"], 0, "investigation", clock[0].isoformat())
     body["sensor_status"] = sensor
+    body["navigation_status"] = navigation
     body["battery"] = battery
     client.post("/api/telemetry", json=body)
     incident = client.get("/api/incidents").json()[0]
@@ -41,6 +42,17 @@ def test_sensor_investigation_states_its_limit(system):
     assert result["confidence"] == "supported"
     assert event["event_id"] in {item["id"] for item in result["citations"]}
     assert "do not distinguish" in result["limitations"][0]
+
+
+def test_navigation_failure_investigation_cites_nav2_guide(system):
+    client, _, event, incident = create_incident(
+        system, "robot-1", navigation="failed"
+    )
+    result = client.post(f"/api/incidents/{incident['id']}/investigate").json()
+    assert result["confidence"] == "supported"
+    assert "navigation mission failure" in result["finding"]
+    assert event["event_id"] in {item["id"] for item in result["citations"]}
+    assert "DOC-NAVIGATION-001" in {item["id"] for item in result["citations"]}
 
 
 def test_disconnection_investigation_does_not_invent_triggering_event(system):

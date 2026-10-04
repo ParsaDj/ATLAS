@@ -43,6 +43,13 @@ GUIDES = (
         (_DOCUMENTS / "heartbeat-loss.md").read_text(),
         "Check the robot process and network path, then confirm a fresh heartbeat before creating a replacement mission.",
     ),
+    Guide(
+        "DOC-NAVIGATION-001",
+        "Navigation action failure",
+        "navigation_failure",
+        (_DOCUMENTS / "navigation-failure.md").read_text(),
+        "Review the Nav2 result and local costmap before approving a replacement mission.",
+    ),
 )
 
 
@@ -94,6 +101,14 @@ def investigate(
         )
         limitations.append("No triggering telemetry record exists for a heartbeat timeout.")
         confidence = "limited"
+    elif fault == "navigation_failure" and triggering:
+        finding = (
+            f"{robot} reported a failed navigation action{mission_text}. "
+            "The available record supports a navigation mission failure."
+        )
+        limitations.append(
+            "The bridge status does not establish whether planning, control, localization, or an obstacle caused the failure."
+        )
     else:
         finding = f"The available records do not support a specific explanation for incident {incident['id']}."
         limitations.append("No recognized fault guide and triggering evidence were available.")

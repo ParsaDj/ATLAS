@@ -28,6 +28,8 @@ class TelemetryEvent:
     battery: float
     mission_id: str | None = None
     sensor_status: Literal["ok", "failed"] = "ok"
+    navigation_status: Literal["ok", "failed"] = "ok"
+    mission_status: Literal["running", "completed"] = "running"
 
     def __post_init__(self):
         if not self.event_id or len(self.event_id) > 128:
@@ -60,6 +62,63 @@ class FlushResult:
     delivered: int = 0
     quarantined: int = 0
     retained: int = 0
+
+
+@dataclass(frozen=True)
+class MissionCommand:
+    action: Literal["start", "cancel"]
+    mission: dict | None
+
+
+class MissionCoordinator:
+    """Deterministic mission/goal reconciliation independent of ROS callbacks."""
+
+    def __init__(self):
+        self.active: dict | None = None
+        self.desired: dict | None = None
+        self.cancelling = False
+        self.terminal = False
+
+    def reconcile(self, mission: dict | None) -> MissionCommand | None:
+        self.desired = mission
+        if self.cancelling:
+            return None
+        if self.active is None:
+            if mission is None:
+                return None
+            self.active = mission
+            self.terminal = False
+            return MissionCommand("start", mission)
+        if self.terminal:
+            if mission and mission["id"] == self.active["id"]:
+                return None
+            self.active = mission
+            self.terminal = False
+            return MissionCommand("start", mission) if mission else None
+        if mission and mission["id"] == self.active["id"]:
+            return None
+        self.cancelling = True
+        return MissionCommand("cancel", self.active)
+
+    def cancelled(self) -> MissionCommand | None:
+        self.active = None
+        self.cancelling = False
+        self.terminal = False
+        if self.desired is None:
+            return None
+        self.active = self.desired
+        return MissionCommand("start", self.desired)
+
+    def finished(self, mission_id: str) -> MissionCommand | None:
+        if not self.active or self.active["id"] != mission_id:
+            return None
+        self.cancelling = False
+        self.terminal = True
+        if self.desired and self.desired["id"] != mission_id:
+            self.active = self.desired
+            self.terminal = False
+            return MissionCommand("start", self.desired)
+        return None
 
 
 class TelemetryOutbox:

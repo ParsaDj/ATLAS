@@ -19,7 +19,7 @@ ATLAS supports a fictional single facility, one customer, and five synthetic ins
 
 1. Harden the synthetic fleet/backend: normalize frequently queried fields and add foreign keys and indexes.
 2. Add an optional hosted-model renderer and versioned prompts while preserving the current evidence contract.
-3. Wrap the tested bridge core in ROS 2, connect one Gazebo/Nav2 robot, then execute approved waypoint missions.
+3. Validate the implemented ROS 2 adapter against one Gazebo/Nav2 robot, then execute approved waypoint missions end to end.
 4. Add maintenance tickets, rescheduling, reports, and recovery testing.
 5. Prepare a reproducible portfolio release and recorded demo.
 
