@@ -3,7 +3,13 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 
-from robotics.atlas_bridge import AtlasBridge, TelemetryEvent, TelemetryOutbox, ros_event_id
+from robotics.atlas_bridge import (
+    AtlasBridge,
+    MissionCoordinator,
+    TelemetryEvent,
+    TelemetryOutbox,
+    ros_event_id,
+)
 
 
 BRIDGE_KEY = "atlas-test-bridge-key-1234567890"
@@ -105,3 +111,64 @@ def test_ros_event_id_is_stable_and_validated():
     assert len(first) <= 128
     with pytest.raises(ValueError):
         ros_event_id("robot-1", -1)
+
+
+def test_mission_coordinator_starts_cancels_and_replaces_goal():
+    coordinator = MissionCoordinator()
+    first = {"id": "mission-1", "waypoints": [{"x": 1, "y": 2}]}
+    second = {"id": "mission-2", "waypoints": [{"x": 3, "y": 4}]}
+    assert coordinator.reconcile(first).action == "start"
+    assert coordinator.reconcile(first) is None
+    cancel = coordinator.reconcile(second)
+    assert cancel.action == "cancel"
+    assert cancel.mission == first
+    assert coordinator.reconcile(second) is None
+    replacement = coordinator.cancelled()
+    assert replacement.action == "start"
+    assert replacement.mission == second
+
+
+def test_mission_coordinator_cancels_removed_goal():
+    coordinator = MissionCoordinator()
+    mission = {"id": "mission-1", "waypoints": []}
+    coordinator.reconcile(mission)
+    assert coordinator.reconcile(None).action == "cancel"
+    assert coordinator.cancelled() is None
+    assert coordinator.active is None
+
+
+def test_finished_goal_waits_for_api_terminal_state_without_restarting():
+    coordinator = MissionCoordinator()
+    mission = {"id": "mission-1", "waypoints": []}
+    coordinator.reconcile(mission)
+    assert coordinator.finished(mission["id"]) is None
+    assert coordinator.reconcile(mission) is None
+    assert coordinator.reconcile(None) is None
+    assert coordinator.active is None
+
+
+def test_navigation_failure_fails_mission_and_creates_incident(system, tmp_path):
+    client, clock, _ = system
+    mission = client.post(
+        "/api/missions",
+        json={"robot_id": "robot-1", "waypoints": [{"x": 2, "y": 3}]},
+    ).json()
+    client.post(f"/api/missions/{mission['id']}/approve")
+    event = TelemetryEvent(
+        event_id="navigation-failure-1",
+        robot_id="robot-1",
+        mission_id=mission["id"],
+        occurred_at=clock[0].isoformat(),
+        x=0,
+        y=0,
+        battery=90,
+        navigation_status="failed",
+    )
+    bridge = AtlasBridge(
+        client, "robot-1", BRIDGE_KEY, TelemetryOutbox(tmp_path / "outbox.db")
+    )
+    assert bridge.submit(event).delivered == 1
+    assert client.get(f"/api/missions/{mission['id']}").json()["status"] == "failed"
+    incident = client.get("/api/incidents").json()[0]
+    assert incident["type"] == "navigation_failure"
+    assert incident["event_ids"] == [event.event_id]
