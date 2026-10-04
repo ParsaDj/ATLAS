@@ -40,6 +40,8 @@ Mission creation, approval, cancellation, incident investigation, user creation,
 
 Maintenance tickets transition `draft → approved → in_progress → resolved`. Operators and administrators create and approve tickets. Technicians can start and resolve only work assigned to their account; administrators may act as an operational override. Resolving a ticket and its linked incident occurs in one transaction. Every transition is audited with the human actor. One incident can have only one maintenance ticket in this version.
 
+Incident and mission reports are generated from records loaded under the authenticated user's server session. Report generation is audited. The HTML renderer escapes every record value, includes a synthetic-data limitation, and presents recorded facts separately from investigation findings, confidence, limitations, and citations. Reports are generated on demand and are not retained as mutable database blobs.
+
 ## Robotics bridge
 
 `robotics/atlas_bridge` separates ROS message handling from API delivery. Its core polls the single running mission assigned to a robot and generates deterministic event identifiers from robot ID, ROS timestamp, and an observation sequence. Every event enters a local SQLite outbox before transmission. Successful and duplicate deliveries are acknowledged; network failures, authentication errors, throttling, and server errors remain queued. Other client errors are quarantined with a bounded reason so one invalid event cannot block subsequent telemetry.
@@ -57,7 +59,7 @@ The heartbeat monitor runs inside one API process. Do not use multiple workers f
 
 ## API
 
-`GET /health`; `GET /api/robots`; `GET /api/robots/{id}`; `GET /api/robots/{id}/telemetry?limit=100`; `GET /api/missions`; `POST /api/missions`; `GET /api/missions/{id}`; `POST /api/missions/{id}/approve`; `POST /api/missions/{id}/cancel`; `GET /api/events`; `GET /api/events/{event_id}`; `POST /api/telemetry`; `GET /api/incidents`; `GET /api/incidents/{id}`; `POST /api/incidents/{id}/investigate`; `POST /api/incidents/{id}/tickets`; `GET /api/tickets`; `GET /api/tickets/{id}`; `POST /api/tickets/{id}/approve`; `POST /api/tickets/{id}/start`; `POST /api/tickets/{id}/resolve`.
+`GET /health`; `GET /api/robots`; `GET /api/robots/{id}`; `GET /api/robots/{id}/telemetry?limit=100`; `GET /api/missions`; `POST /api/missions`; `GET /api/missions/{id}`; `POST /api/missions/{id}/approve`; `POST /api/missions/{id}/cancel`; `GET /api/missions/{id}/report.html`; `GET /api/events`; `GET /api/events/{event_id}`; `POST /api/telemetry`; `GET /api/incidents`; `GET /api/incidents/{id}`; `POST /api/incidents/{id}/investigate`; `GET /api/incidents/{id}/report.html`; `POST /api/incidents/{id}/tickets`; `GET /api/tickets`; `GET /api/tickets/{id}`; `POST /api/tickets/{id}/approve`; `POST /api/tickets/{id}/start`; `POST /api/tickets/{id}/resolve`.
 
 OpenAPI schemas and request examples are available at `/docs`. Ticket creation remains deferred until authenticated server-side approval exists.
 

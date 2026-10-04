@@ -113,3 +113,18 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   return response.status === 204 ? (undefined as T) : response.json();
 }
+
+export async function download(path: string) {
+  const response = await fetch(path, { credentials: "same-origin" });
+  if (!response.ok) throw new Error(`Download failed (${response.status})`);
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? "atlas-report.html";
+  const url = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}

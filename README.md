@@ -4,7 +4,7 @@ Independent robotics and AI portfolio project. Uses five simulated robots and en
 
 ## Current implementation
 
-ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, user administration, audit history, and human-approved maintenance tickets. The robotics integration includes machine authentication, mission polling, stable ROS event IDs, durable offline telemetry buffering, and a ROS 2 node that translates approved missions into Nav2 waypoint actions. Gazebo environment validation, downloadable customer reports, and an optional hosted-model adapter remain future milestones.
+ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, user administration, audit history, human-approved maintenance tickets, and downloadable customer reports. The robotics integration includes machine authentication, mission polling, stable ROS event IDs, durable offline telemetry buffering, and a ROS 2 node that translates approved missions into Nav2 waypoint actions. Gazebo environment validation, approved mission rescheduling, and an optional hosted-model adapter remain future milestones.
 
 ## Run locally on macOS
 
@@ -54,6 +54,8 @@ Use a returned mission ID with `GET /api/missions/{mission_id}` to inspect the f
 Run `POST /api/incidents/{incident_id}/investigate` or select **Investigate incident** in the dashboard to produce an evidence-grounded explanation. The first implementation is deterministic and works without an API key or paid model. It reads only the incident's mission, referenced events, and approved local troubleshooting guides. Each result includes a confidence level, explicit limitations, a recommended next step, citations, and a read-only tool trace. It cannot create tickets, reschedule missions, or command robots.
 
 Operators and administrators can draft a maintenance ticket from an open incident and assign it to an active technician account. Approval is a separate action. Only the assigned technician or an administrator can start and resolve the approved work. Resolving the ticket atomically resolves the incident and records the resolution. Ticket creation, approval, start, and resolution are attributed in the audit log.
+
+Authenticated users can download printable HTML reports from incident and mission details. Incident reports separate recorded facts from evidence-based findings, confidence, limitations, citations, and maintenance history. Mission reports include route, telemetry summary, incidents, and linked tickets. Customer-entered content is HTML-escaped, every generation is audited, and each report states that it contains synthetic records rather than physical-safety evidence.
 
 A rerun creates new missions and retains previous records. After the simulator exits, the heartbeat monitor will eventually mark the remaining robots disconnected too. Inspect the printed incident list at the end of the demo for the three intended faults. An interrupted run can leave running missions. The simulator checks for these before creating any new missions. Find them with `GET /api/missions?status=running`, then cancel each using `POST /api/missions/{id}/cancel` with `{"reason":"Restart interrupted demo"}`. Cancellation is a terminal state and retains all evidence. You can then rerun the simulator. To start a separate dataset without removing data, first run `DATABASE_URL=sqlite:///./another-demo.db alembic upgrade head`, then start the API with the same `DATABASE_URL`.
 
@@ -131,11 +133,12 @@ pnpm exec playwright install chromium
 ATLAS_TEST_PYTHON=../../.venv/bin/python pnpm test:e2e
 ```
 
-Build the dashboard first. The seven tests cover authentication, incident evidence, mission creation/approval/cancellation, audit administration, the complete maintenance workflow, API outage/recovery, mobile navigation, and a dashboard-approved mission completing through a real worker process. CI also runs these workflows against a real API (SQLite).
+Build the dashboard first. The eight tests cover authentication, incident evidence, mission creation/approval/cancellation, audit administration, the complete maintenance workflow, downloaded customer reports, API outage/recovery, mobile navigation, and a dashboard-approved mission completing through a real worker process. CI also runs these workflows against a real API (SQLite).
 
 ## Project map
 
 - `apps/api/main.py`: API, persistence, mission transitions, heartbeat monitor.
+- `apps/api/reports.py`: escaped printable incident and mission report rendering.
 - `migrations/`: versioned SQLite/PostgreSQL schema changes managed by Alembic.
 - `apps/ai_agent/`: read-only evidence engine and approved troubleshooting guides.
 - `apps/dashboard/`: React/TypeScript customer dashboard and browser tests.

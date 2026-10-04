@@ -22,6 +22,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from apps.ai_agent.service import investigate as investigate_records
 from apps.api.migrations import require_current_schema
+from apps.api.reports import incident_report, mission_report
 
 
 def now():
@@ -831,6 +832,115 @@ def create_app(
                 {"confidence": result["confidence"]},
             )
             return result
+
+    def report_response(content: str, filename: str):
+        return Response(
+            content=content,
+            media_type="text/html; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    @app.get("/api/incidents/{incident_id}/report.html")
+    def download_incident_report(incident_id: str, actor=Depends(any_user)):
+        with sessions.begin() as db:
+            incident_row = db.get(Incident, incident_id)
+            if not incident_row:
+                raise HTTPException(404, "Incident not found")
+            incident_data = incident_row.data
+            mission_row = (
+                db.get(Mission, incident_data["mission_id"])
+                if incident_data.get("mission_id")
+                else None
+            )
+            evidence = [db.get(Telemetry, event_id) for event_id in incident_data.get("event_ids", [])]
+            events_data = [row.data for row in evidence if row]
+            investigation = investigate_records(
+                incident_data,
+                mission_row.data if mission_row else None,
+                events_data,
+            )
+            ticket_rows = db.scalars(
+                select(MaintenanceTicket).where(
+                    MaintenanceTicket.incident_id == incident_id
+                )
+            )
+            tickets_data = [ticket_data(db, row) for row in ticket_rows]
+            generated_at = clock().isoformat()
+            content = incident_report(
+                incident_data,
+                mission_row.data if mission_row else None,
+                events_data,
+                investigation,
+                tickets_data,
+                generated_at,
+                actor["username"],
+            )
+            audit(
+                db,
+                actor["id"],
+                "report.generate",
+                "incident",
+                incident_id,
+                {"format": "html"},
+            )
+            return report_response(content, f"atlas-incident-{incident_id}.html")
+
+    @app.get("/api/missions/{mission_id}/report.html")
+    def download_mission_report(mission_id: str, actor=Depends(any_user)):
+        with sessions.begin() as db:
+            mission_row = db.get(Mission, mission_id)
+            if not mission_row:
+                raise HTTPException(404, "Mission not found")
+            events_data = [
+                row.data
+                for row in db.scalars(
+                    select(Telemetry)
+                    .where(Telemetry.data["mission_id"].as_string() == mission_id)
+                    .order_by(
+                        Telemetry.data["occurred_at"].as_string().desc(),
+                        Telemetry.id,
+                    )
+                )
+            ]
+            incident_rows = list(
+                db.scalars(
+                    select(Incident).where(
+                        Incident.data["mission_id"].as_string() == mission_id
+                    )
+                )
+            )
+            incidents_data = [row.data for row in incident_rows]
+            incident_ids = [row.id for row in incident_rows]
+            ticket_rows = (
+                list(
+                    db.scalars(
+                        select(MaintenanceTicket).where(
+                            MaintenanceTicket.incident_id.in_(incident_ids)
+                        )
+                    )
+                )
+                if incident_ids
+                else []
+            )
+            tickets_data = [ticket_data(db, row) for row in ticket_rows]
+            generated_at = clock().isoformat()
+            content = mission_report(
+                mission_row.data,
+                events_data,
+                incidents_data,
+                tickets_data,
+                generated_at,
+                actor["username"],
+            )
+            audit(
+                db,
+                actor["id"],
+                "report.generate",
+                "mission",
+                mission_id,
+                {"format": "html"},
+            )
+            return report_response(content, f"atlas-mission-{mission_id}.html")
 
     dashboard = Path(__file__).resolve().parents[1] / "dashboard" / "dist"
     if dashboard.is_dir():
