@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   api,
+  download,
   type Robot,
   type Mission,
   type Incident,
@@ -1192,6 +1193,18 @@ function Details({
       setBusy(false);
     }
   }
+  async function downloadReport(kind: "missions" | "incidents", id: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await download(`/api/${kind}/${encodeURIComponent(id)}/report.html`);
+      setMessage("Customer report downloaded.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <Modal
       title={
@@ -1277,6 +1290,13 @@ function Details({
             )}
             {mission && (
               <>
+                <button
+                  className="wide-link"
+                  disabled={busy}
+                  onClick={() => void downloadReport("missions", mission.id)}
+                >
+                  Download inspection report ↓
+                </button>
                 <h4>Waypoint progress</h4>
                 <p role="status">
                   {mission.status === "completed"
@@ -1353,6 +1373,13 @@ function Details({
             )}
             {incident && (
               <>
+                <button
+                  className="wide-link"
+                  disabled={busy}
+                  onClick={() => void downloadReport("incidents", incident.id)}
+                >
+                  Download incident report ↓
+                </button>
                 <h4>Evidence-based investigation</h4>
                 {!investigation ? (
                   <button

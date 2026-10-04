@@ -253,6 +253,39 @@ test("approved maintenance ticket is completed by its assigned technician", asyn
   await expect(technicianDrawer.getByText("resolved", { exact: true })).toHaveCount(2);
 });
 
+test("operator downloads incident and inspection reports", async ({ page }) => {
+  const { readFile } = await import("node:fs/promises");
+  await page.goto("/");
+  await page.getByRole("button", { name: /Incidents/ }).click();
+  await page
+    .getByRole("row")
+    .filter({ hasText: "sensor failure" })
+    .getByRole("button", { name: /Investigate/ })
+    .click();
+  const incidentDrawer = page.getByRole("dialog", { name: "Incident evidence" });
+  const [incidentDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    incidentDrawer.getByRole("button", { name: "Download incident report" }).click(),
+  ]);
+  expect(incidentDownload.suggestedFilename()).toMatch(/^atlas-incident-.+\.html$/);
+  const incidentPath = await incidentDownload.path();
+  expect(await readFile(incidentPath!, "utf8")).toContain(
+    "Evidence-based investigation",
+  );
+
+  await incidentDrawer.getByRole("button", { name: "Open linked mission" }).click();
+  const missionDrawer = page.getByRole("dialog", { name: "Mission details" });
+  const [missionDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    missionDrawer
+      .getByRole("button", { name: "Download inspection report" })
+      .click(),
+  ]);
+  expect(missionDownload.suggestedFilename()).toMatch(/^atlas-mission-.+\.html$/);
+  const missionPath = await missionDownload.path();
+  expect(await readFile(missionPath!, "utf8")).toContain("Telemetry summary");
+});
+
 test("approved dashboard mission executes in a real worker process", async ({
   page,
   request,
