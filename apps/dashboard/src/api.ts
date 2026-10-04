@@ -65,7 +65,12 @@ export type Investigation = {
   confidence: "supported" | "limited" | "insufficient";
   limitations: string[];
   recommended_next_step: string;
-  citations: { type: "event" | "mission" | "document"; id: string }[];
+  citations: {
+    type: "event" | "mission" | "document";
+    id: string;
+    version?: string;
+    sha256?: string;
+  }[];
   generated_by: string;
 };
 export type User = {

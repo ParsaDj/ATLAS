@@ -11,6 +11,7 @@ ATLAS supports a fictional single facility, one customer, and five synthetic ins
 - Persistent telemetry and incident APIs with retry deduplication and filtered, paginated evidence history.
 - Deterministic read-only incident investigation with approved guide retrieval, citations, and uncertainty.
 - A reproducible 120-scenario investigation evaluation dataset.
+- Immutable, approved technical-document revisions with stable version and content-hash citations.
 - Versioned Alembic migrations for fresh and legacy SQLite/PostgreSQL databases.
 - Local role-based authentication, CSRF protection, user administration, and audit history.
 - Local SQLite setup, PostgreSQL Compose configuration, and automated workflow tests.
@@ -19,9 +20,8 @@ ATLAS supports a fictional single facility, one customer, and five synthetic ins
 
 1. Harden the synthetic fleet/backend: normalize frequently queried fields and add foreign keys and indexes.
 2. Add an optional hosted-model renderer and versioned prompts while preserving the current evidence contract.
-3. Add versioned technical-document retrieval with PostgreSQL metadata and a local fallback.
-4. Validate the implemented ROS 2 adapter against one Gazebo/Nav2 robot, then execute approved waypoint missions end to end.
-4. Add maintenance tickets, rescheduling, reports, and recovery testing.
+3. Validate the implemented ROS 2 adapter against one Gazebo/Nav2 robot, then execute approved waypoint missions end to end.
+4. Expand recovery testing and operational measurements.
 5. Prepare a reproducible portfolio release and recorded demo.
 
 Budget: 5–7 hours/week, no hardware required. Milestones 1–3 form the MVP. Use only synthetic or appropriately licensed public material. Choose a license and publish the repository when ready; neither publication nor an open-source license is implied by this initial local scaffold.
@@ -36,4 +36,4 @@ The operations worker now executes dashboard-approved missions, reports waypoint
 
 ## Investigation milestone delivered
 
-The first investigation service uses a deterministic evidence engine so the feature remains free and reproducible. It receives only API-authorized records, retrieves approved local troubleshooting guides, and returns cited findings with confidence, limitations, next steps, and a read-only tool trace. The 120-case dataset covers low battery, sensor failure, and heartbeat loss. Unknown faults and missing records produce insufficient-evidence results. An LLM renderer can be added later without changing these server-side boundaries.
+The first investigation service uses a deterministic evidence engine so the feature remains free and reproducible. It receives only API-authorized records, retrieves approved document revisions from the application database, and returns cited findings with confidence, limitations, next steps, and a read-only tool trace. Revisions are immutable and citations include the exact version and SHA-256 content hash. Bundled Markdown revisions provide a local evaluation fallback. The 120-case dataset covers low battery, sensor failure, and heartbeat loss. Unknown faults and missing records produce insufficient-evidence results. An LLM renderer can be added later without changing these server-side boundaries.
