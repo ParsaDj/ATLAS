@@ -102,6 +102,7 @@ class Sample(StrictModel):
     battery: float = Field(ge=0, le=100)
     mission_id: str | None = None
     sensor_status: Literal["ok", "failed"] = "ok"
+    navigation_status: Literal["ok", "failed"] = "ok"
     mission_status: Literal["running", "completed"] = "running"
     execution_step: int | None = Field(default=None, ge=1)
     completed_waypoints: int | None = Field(default=None, ge=0)
@@ -583,6 +584,8 @@ def create_app(
                     faults = []
                     if body.sensor_status == "failed":
                         faults.append("sensor_failure")
+                    if body.navigation_status == "failed":
+                        faults.append("navigation_failure")
                     if body.battery < 20:
                         faults.append("low_battery")
                     r.data = {**r.data, "status": "attention" if faults else "online", "last_contact": timestamp.isoformat(), "last_event_at": payload["occurred_at"], "position": payload["position"], "battery": body.battery}

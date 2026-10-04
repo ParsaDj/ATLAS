@@ -42,7 +42,7 @@ Mission creation, approval, cancellation, incident investigation, user creation,
 
 `robotics/atlas_bridge` separates ROS message handling from API delivery. Its core polls the single running mission assigned to a robot and generates deterministic event identifiers from robot ID, ROS timestamp, and an observation sequence. Every event enters a local SQLite outbox before transmission. Successful and duplicate deliveries are acknowledged; network failures, authentication errors, throttling, and server errors remain queued. Other client errors are quarantined with a bounded reason so one invalid event cannot block subsequent telemetry.
 
-The outbox is a delivery mechanism rather than a safety controller. Nav2 remains responsible for motion execution and obstacle handling. The future `rclpy` wrapper will subscribe to odometry, battery, and diagnostics and will translate approved mission waypoints into a Nav2 action. ATLAS cannot publish raw motor commands.
+The outbox is a delivery mechanism rather than a safety controller. Nav2 remains responsible for motion execution and obstacle handling. The `atlas_ros` node subscribes to odometry, battery, and diagnostics and translates approved mission waypoints into a `NavigateThroughPoses` action. Mission removal cancels the active goal. A successful result completes the mission; a rejected or aborted goal records a navigation-failure incident. ATLAS cannot publish raw motor commands.
 
 ## Fault rules
 

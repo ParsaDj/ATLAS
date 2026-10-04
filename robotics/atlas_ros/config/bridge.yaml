@@ -1,0 +1,11 @@
+atlas_bridge:
+  ros__parameters:
+    api_url: http://127.0.0.1:8000
+    robot_id: robot-1
+    outbox_path: /tmp/atlas-robot-1-outbox.db
+    odom_topic: /odom
+    battery_topic: /battery_state
+    diagnostics_topic: /diagnostics
+    map_frame: map
+    mission_poll_seconds: 1.0
+    telemetry_seconds: 1.0

@@ -4,7 +4,7 @@ Independent robotics and AI portfolio project. Uses five simulated robots and en
 
 ## Current implementation
 
-ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, user administration, and audit history. A transport-independent robotics bridge core adds machine authentication, mission polling, stable ROS event IDs, and durable offline telemetry buffering. The ROS 2 node, Gazebo environment, maintenance tickets, and optional hosted-model adapter remain future milestones.
+ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, user administration, and audit history. The robotics integration includes machine authentication, mission polling, stable ROS event IDs, durable offline telemetry buffering, and a ROS 2 node that translates approved missions into Nav2 waypoint actions. Gazebo environment validation, maintenance tickets, and an optional hosted-model adapter remain future milestones.
 
 ## Run locally on macOS
 
@@ -119,7 +119,7 @@ Current verification totals are recorded in `docs/evaluation.md`. The backend Gi
 
 `robotics/atlas_bridge` is the ROS-independent portion of the integration. It polls the approved mission for one robot, authenticates telemetry with `X-ATLAS-Bridge-Key`, assigns replay-safe IDs from the ROS timestamp and sequence, and writes every observation to a SQLite outbox before delivery. Temporary network, authentication, throttling, and server failures retain events for a later flush. Permanent validation failures move to a rejected-event table so a poisoned record cannot block newer observations.
 
-This core runs and is tested on macOS. The Ubuntu phase will wrap it with an `rclpy` node that subscribes to odometry, battery, and diagnostics topics and sends approved waypoints to Nav2. See `docs/ros2-integration.md` for the environment and topic contract.
+This core and its mission state machine run and are tested on macOS. `robotics/atlas_ros` provides the `rclpy` wrapper that subscribes to odometry, battery, and diagnostics topics and sends approved waypoints to Nav2. Its Python syntax and package contract are checked locally; runtime validation still requires Ubuntu with ROS 2, Gazebo, and Nav2. See `docs/ros2-integration.md` for setup and acceptance steps.
 
 Dashboard workflow tests use Chromium and a fresh temporary SQLite database on port 8011; they never touch `atlas.db`:
 
@@ -139,6 +139,7 @@ Build the dashboard first. The six tests cover authentication, incident evidence
 - `apps/dashboard/`: React/TypeScript customer dashboard and browser tests.
 - `simulator/fleet.py`: reproducible synthetic fleet and JSONL event output.
 - `robotics/atlas_bridge/`: reliable transport core for the ROS 2 adapter.
+- `robotics/atlas_ros/`: ROS 2 package, Nav2 action client, launch file, and configuration.
 - `tests/test_api.py`: workflow and reliability tests.
 - `tests/evaluations/`: reproducible synthetic incident evaluation dataset.
 - `docs/architecture.md`: contracts, state handling, and design tradeoffs.
