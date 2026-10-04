@@ -85,6 +85,16 @@ class AuditLog(Base):
     details: Mapped[dict] = mapped_column(JSON)
 
 
+class MaintenanceTicket(Base):
+    __tablename__ = "maintenance_tickets"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    incident_id: Mapped[str] = mapped_column(
+        ForeignKey("incidents.id"), unique=True, index=True
+    )
+    assigned_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    data: Mapped[dict] = mapped_column(JSON)
+
+
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -127,6 +137,17 @@ class LoginRequest(StrictModel):
 
 class UserRequest(LoginRequest):
     role: Role
+
+
+class TicketRequest(StrictModel):
+    summary: str = Field(min_length=3, max_length=500, pattern=r"\S")
+    assigned_technician: str = Field(
+        min_length=3, max_length=50, pattern=r"^[a-z0-9._-]+$"
+    )
+
+
+class TicketResolution(StrictModel):
+    resolution: str = Field(min_length=3, max_length=2000, pattern=r"\S")
 
 
 def password_hash(password: str) -> str:
@@ -323,6 +344,8 @@ def create_app(
     mission_write = authorize("operator", "administrator", csrf=True)
     admin_read = authorize("administrator")
     admin_write = authorize("administrator", csrf=True)
+    ticket_create = authorize("operator", "administrator", csrf=True)
+    ticket_work = authorize("technician", "administrator", csrf=True)
 
     @app.post("/api/auth/login")
     def login(body: LoginRequest, response: Response):
@@ -418,6 +441,167 @@ def create_app(
                     }
                 )
             return result
+
+    def ticket_data(db, ticket):
+        assigned = db.get(User, ticket.assigned_user_id)
+        return {
+            **ticket.data,
+            "assigned_technician": assigned.username if assigned else "unavailable",
+        }
+
+    @app.post("/api/incidents/{incident_id}/tickets", status_code=201)
+    def create_ticket(
+        incident_id: str, body: TicketRequest, actor=Depends(ticket_create)
+    ):
+        with sessions.begin() as db:
+            linked_incident = db.get(Incident, incident_id)
+            if not linked_incident:
+                raise HTTPException(404, "Incident not found")
+            if linked_incident.data["status"] != "open":
+                raise HTTPException(409, "Tickets require an open incident")
+            if db.scalar(
+                select(MaintenanceTicket).where(
+                    MaintenanceTicket.incident_id == incident_id
+                )
+            ):
+                raise HTTPException(409, "Incident already has a maintenance ticket")
+            assigned = db.scalar(
+                select(User).where(User.username == body.assigned_technician)
+            )
+            if not assigned or not assigned.active or assigned.role != "technician":
+                raise HTTPException(422, "Assigned technician must be an active technician")
+            ticket_id = str(uuid4())
+            data = {
+                "id": ticket_id,
+                "incident_id": incident_id,
+                "summary": body.summary,
+                "status": "draft",
+                "created_at": clock().isoformat(),
+                "created_by": actor["username"],
+                "approved_at": None,
+                "approved_by": None,
+                "started_at": None,
+                "resolved_at": None,
+                "resolution": None,
+            }
+            ticket = MaintenanceTicket(
+                id=ticket_id,
+                incident_id=incident_id,
+                assigned_user_id=assigned.id,
+                data=data,
+            )
+            db.add(ticket)
+            audit(
+                db,
+                actor["id"],
+                "ticket.create",
+                "maintenance_ticket",
+                ticket_id,
+                {"incident_id": incident_id, "assigned_technician": assigned.username},
+            )
+            return {**data, "assigned_technician": assigned.username}
+
+    @app.get("/api/tickets")
+    def tickets(
+        incident_id: str | None = None,
+        status: Literal["draft", "approved", "in_progress", "resolved"] | None = None,
+        limit: int = Query(100, ge=1, le=1000),
+        offset: int = Query(0, ge=0),
+        _actor=Depends(any_user),
+    ):
+        with sessions() as db:
+            query = select(MaintenanceTicket)
+            if incident_id is not None:
+                query = query.where(MaintenanceTicket.incident_id == incident_id)
+            if status is not None:
+                query = query.where(
+                    MaintenanceTicket.data["status"].as_string() == status
+                )
+            query = query.order_by(
+                MaintenanceTicket.data["created_at"].as_string().desc(),
+                MaintenanceTicket.id,
+            ).limit(limit).offset(offset)
+            return [ticket_data(db, ticket) for ticket in db.scalars(query)]
+
+    @app.get("/api/tickets/{ticket_id}")
+    def ticket(ticket_id: str, _actor=Depends(any_user)):
+        with sessions() as db:
+            row = db.get(MaintenanceTicket, ticket_id)
+            if not row:
+                raise HTTPException(404, "Maintenance ticket not found")
+            return ticket_data(db, row)
+
+    @app.post("/api/tickets/{ticket_id}/approve")
+    def approve_ticket(ticket_id: str, actor=Depends(ticket_create)):
+        with sessions.begin() as db:
+            row = db.get(MaintenanceTicket, ticket_id)
+            if not row:
+                raise HTTPException(404, "Maintenance ticket not found")
+            if row.data["status"] != "draft":
+                raise HTTPException(409, "Only draft tickets can be approved")
+            row.data = {
+                **row.data,
+                "status": "approved",
+                "approved_at": clock().isoformat(),
+                "approved_by": actor["username"],
+            }
+            audit(db, actor["id"], "ticket.approve", "maintenance_ticket", ticket_id)
+            return ticket_data(db, row)
+
+    def require_assigned(db, row, actor):
+        if actor["role"] != "administrator" and row.assigned_user_id != actor["id"]:
+            raise HTTPException(403, "Ticket is assigned to another technician")
+
+    @app.post("/api/tickets/{ticket_id}/start")
+    def start_ticket(ticket_id: str, actor=Depends(ticket_work)):
+        with sessions.begin() as db:
+            row = db.get(MaintenanceTicket, ticket_id)
+            if not row:
+                raise HTTPException(404, "Maintenance ticket not found")
+            require_assigned(db, row, actor)
+            if row.data["status"] != "approved":
+                raise HTTPException(409, "Only approved tickets can be started")
+            row.data = {
+                **row.data,
+                "status": "in_progress",
+                "started_at": clock().isoformat(),
+            }
+            audit(db, actor["id"], "ticket.start", "maintenance_ticket", ticket_id)
+            return ticket_data(db, row)
+
+    @app.post("/api/tickets/{ticket_id}/resolve")
+    def resolve_ticket(
+        ticket_id: str, body: TicketResolution, actor=Depends(ticket_work)
+    ):
+        with sessions.begin() as db:
+            row = db.get(MaintenanceTicket, ticket_id)
+            if not row:
+                raise HTTPException(404, "Maintenance ticket not found")
+            require_assigned(db, row, actor)
+            if row.data["status"] != "in_progress":
+                raise HTTPException(409, "Only in-progress tickets can be resolved")
+            linked_incident = db.get(Incident, row.incident_id)
+            resolved_at = clock().isoformat()
+            row.data = {
+                **row.data,
+                "status": "resolved",
+                "resolved_at": resolved_at,
+                "resolution": body.resolution,
+            }
+            linked_incident.data = {
+                **linked_incident.data,
+                "status": "resolved",
+                "resolution": body.resolution,
+            }
+            audit(
+                db,
+                actor["id"],
+                "ticket.resolve",
+                "maintenance_ticket",
+                ticket_id,
+                {"incident_id": row.incident_id},
+            )
+            return ticket_data(db, row)
 
     def get_record(model, identifier):
         with sessions() as db:

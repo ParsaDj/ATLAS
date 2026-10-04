@@ -28,6 +28,21 @@ export type Incident = {
   status: string;
   detected_at: string;
   event_ids: string[];
+  resolution?: string | null;
+};
+export type MaintenanceTicket = {
+  id: string;
+  incident_id: string;
+  summary: string;
+  status: "draft" | "approved" | "in_progress" | "resolved";
+  assigned_technician: string;
+  created_at: string;
+  created_by: string;
+  approved_at: string | null;
+  approved_by: string | null;
+  started_at: string | null;
+  resolved_at: string | null;
+  resolution: string | null;
 };
 export type Event = {
   event_id: string;
@@ -37,6 +52,7 @@ export type Event = {
   received_at: string;
   battery: number;
   sensor_status: string;
+  navigation_status?: string;
   position: Position;
   mission_status: string;
 };

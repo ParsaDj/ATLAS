@@ -194,6 +194,65 @@ test("administrator creates a user and reviews the audit trail", async ({
   ).toBeVisible();
 });
 
+test("approved maintenance ticket is completed by its assigned technician", async ({
+  page,
+  request,
+}) => {
+  const adminLogin = await request.post("/api/auth/login", {
+    data: { username: "atlas-admin", password },
+  });
+  expect(adminLogin.ok()).toBeTruthy();
+  const adminCsrf = (await adminLogin.json()).csrf_token;
+  const created = await request.post("/api/users", {
+    headers: { "X-CSRF-Token": adminCsrf },
+    data: {
+      username: "ticket-tech",
+      password: "ticket-technician-password",
+      role: "technician",
+    },
+  });
+  expect(created.ok()).toBeTruthy();
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /sensor failure robot-3/ }).click();
+  const drawer = page.getByRole("dialog", { name: "Incident evidence" });
+  await drawer
+    .getByLabel("Work summary")
+    .fill("Inspect and calibrate the failed inspection sensor");
+  await drawer.getByLabel("Assigned technician username").fill("ticket-tech");
+  await drawer.getByRole("button", { name: "Draft maintenance ticket" }).click();
+  await expect(drawer.getByText("draft", { exact: true })).toBeVisible();
+  await drawer
+    .getByRole("button", { name: "Approve maintenance work" })
+    .click();
+  await expect(drawer.getByText("approved", { exact: true })).toBeVisible();
+  await drawer.getByRole("button", { name: "Close" }).click();
+  await page.getByRole("button", { name: "Sign out" }).click();
+
+  await page.getByLabel("Username").fill("ticket-tech");
+  await page.getByLabel("Password").fill("ticket-technician-password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: /Incidents/ }).click();
+  await page
+    .getByRole("row")
+    .filter({ hasText: "sensor failure" })
+    .getByRole("button", { name: /Investigate/ })
+    .click();
+  const technicianDrawer = page.getByRole("dialog", {
+    name: "Incident evidence",
+  });
+  await technicianDrawer
+    .getByRole("button", { name: "Start maintenance work" })
+    .click();
+  await technicianDrawer
+    .getByLabel("Resolution")
+    .fill("Recalibrated the sensor and verified healthy observations.");
+  await technicianDrawer
+    .getByRole("button", { name: "Resolve ticket and incident" })
+    .click();
+  await expect(technicianDrawer.getByText("resolved", { exact: true })).toHaveCount(2);
+});
+
 test("approved dashboard mission executes in a real worker process", async ({
   page,
   request,
