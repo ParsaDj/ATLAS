@@ -16,11 +16,11 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, AwareDatetime, ConfigDict
-from sqlalchemy import Boolean, ForeignKey, create_engine, String, JSON, select, event
+from sqlalchemy import Boolean, ForeignKey, create_engine, String, Text, JSON, select, event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
-from apps.ai_agent.service import investigate as investigate_records
+from apps.ai_agent.service import GUIDES, Guide, investigate as investigate_records
 from apps.api.migrations import require_current_schema
 from apps.api.reports import incident_report, mission_report
 
@@ -96,6 +96,19 @@ class MaintenanceTicket(Base):
     data: Mapped[dict] = mapped_column(JSON)
 
 
+class TechnicalDocument(Base):
+    __tablename__ = "technical_documents"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    version: Mapped[str] = mapped_column(String, primary_key=True)
+    fault: Mapped[str] = mapped_column(String, index=True)
+    title: Mapped[str] = mapped_column(String)
+    content: Mapped[str] = mapped_column(Text)
+    next_step: Mapped[str] = mapped_column(Text)
+    checksum: Mapped[str] = mapped_column(String)
+    approved: Mapped[bool] = mapped_column(Boolean, index=True)
+    created_at: Mapped[str] = mapped_column(String, index=True)
+
+
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -153,6 +166,15 @@ class TicketRequest(StrictModel):
 
 class TicketResolution(StrictModel):
     resolution: str = Field(min_length=3, max_length=2000, pattern=r"\S")
+
+
+class TechnicalDocumentRequest(StrictModel):
+    id: str = Field(min_length=3, max_length=100, pattern=r"^[A-Z0-9-]+$")
+    version: str = Field(min_length=1, max_length=32, pattern=r"^[0-9]+(?:\.[0-9]+){0,2}$")
+    fault: str = Field(min_length=3, max_length=100, pattern=r"^[a-z0-9_]+$")
+    title: str = Field(min_length=3, max_length=200, pattern=r"\S")
+    content: str = Field(min_length=20, max_length=100_000, pattern=r"\S")
+    next_step: str = Field(min_length=3, max_length=1000, pattern=r"\S")
 
 
 def password_hash(password: str) -> str:
@@ -246,6 +268,24 @@ def create_app(
                 )
             )
 
+    def seed_documents():
+        with sessions.begin() as db:
+            for guide in GUIDES:
+                if not db.get(TechnicalDocument, (guide.id, guide.version)):
+                    db.add(
+                        TechnicalDocument(
+                            id=guide.id,
+                            version=guide.version,
+                            fault=guide.fault,
+                            title=guide.title,
+                            content=guide.text,
+                            next_step=guide.next_step,
+                            checksum=guide.checksum,
+                            approved=True,
+                            created_at=clock().isoformat(),
+                        )
+                    )
+
     def incident(db, robot, mission_id, kind, event_id, timestamp):
         key = f"{mission_id}:{kind}" if mission_id else f"{robot.id}:{kind}:{event_id}"
         if db.scalar(select(Incident).where(Incident.dedup_key == key)):
@@ -282,6 +322,7 @@ def create_app(
         require_current_schema(engine)
         seed_robots()
         seed_admin()
+        seed_documents()
         task = asyncio.create_task(watchdog()) if monitor else None
         try:
             yield
@@ -307,6 +348,35 @@ def create_app(
                 details=details or {},
             )
         )
+
+    def document_data(row):
+        return {
+            "id": row.id,
+            "version": row.version,
+            "fault": row.fault,
+            "title": row.title,
+            "content": row.content,
+            "next_step": row.next_step,
+            "sha256": row.checksum,
+            "approved": row.approved,
+            "created_at": row.created_at,
+        }
+
+    def investigation_guides(db, fault):
+        rows = list(
+            db.scalars(
+                select(TechnicalDocument)
+                .where(TechnicalDocument.fault == fault, TechnicalDocument.approved.is_(True))
+                .order_by(TechnicalDocument.id, TechnicalDocument.created_at.desc(), TechnicalDocument.version.desc())
+            )
+        )
+        latest = {}
+        for row in rows:
+            latest.setdefault(row.id, row)
+        return [
+            Guide(row.id, row.title, row.fault, row.content, row.next_step, row.version, row.checksum)
+            for row in latest.values()
+        ]
 
     def actor_from_request(request: Request):
         token = request.cookies.get("atlas_session")
@@ -446,6 +516,97 @@ def create_app(
                     }
                 )
             return result
+
+    @app.get("/api/documents")
+    def documents(
+        fault: str | None = None,
+        approved: bool | None = True,
+        actor=Depends(any_user),
+    ):
+        if approved is not True and actor["role"] != "administrator":
+            raise HTTPException(403, "Only administrators can view unapproved revisions")
+        with sessions() as db:
+            query = select(TechnicalDocument)
+            if fault is not None:
+                query = query.where(TechnicalDocument.fault == fault)
+            if approved is not None:
+                query = query.where(TechnicalDocument.approved.is_(approved))
+            query = query.order_by(
+                TechnicalDocument.id,
+                TechnicalDocument.created_at.desc(),
+                TechnicalDocument.version.desc(),
+            )
+            return [document_data(row) for row in db.scalars(query)]
+
+    @app.get("/api/documents/{document_id}/versions/{version}")
+    def document_revision(document_id: str, version: str, actor=Depends(any_user)):
+        with sessions() as db:
+            row = db.get(TechnicalDocument, (document_id, version))
+            if not row:
+                raise HTTPException(404, "Technical document revision not found")
+            if not row.approved and actor["role"] != "administrator":
+                raise HTTPException(403, "Only administrators can view unapproved revisions")
+            return document_data(row)
+
+    @app.post("/api/documents", status_code=201)
+    def create_document(body: TechnicalDocumentRequest, actor=Depends(admin_write)):
+        content = body.content.strip()
+        checksum = hashlib.sha256(content.encode()).hexdigest()
+        with sessions.begin() as db:
+            if db.get(TechnicalDocument, (body.id, body.version)):
+                raise HTTPException(409, "Technical document revision already exists")
+            row = TechnicalDocument(
+                id=body.id,
+                version=body.version,
+                fault=body.fault,
+                title=body.title.strip(),
+                content=content,
+                next_step=body.next_step.strip(),
+                checksum=checksum,
+                approved=False,
+                created_at=clock().isoformat(),
+            )
+            db.add(row)
+            audit(
+                db,
+                actor["id"],
+                "document.create_revision",
+                "technical_document",
+                body.id,
+                {
+                    "version": body.version,
+                    "fault": body.fault,
+                    "approved": False,
+                    "sha256": checksum,
+                },
+            )
+            return document_data(row)
+
+    @app.post("/api/documents/{document_id}/versions/{version}/approve")
+    def approve_document(document_id: str, version: str, actor=Depends(admin_write)):
+        with sessions.begin() as db:
+            row = db.scalar(
+                select(TechnicalDocument)
+                .where(
+                    TechnicalDocument.id == document_id,
+                    TechnicalDocument.version == version,
+                )
+                .with_for_update()
+            )
+            if not row:
+                raise HTTPException(404, "Technical document revision not found")
+            if row.approved:
+                raise HTTPException(409, "Technical document revision is already approved")
+            row.approved = True
+            audit(
+                db,
+                actor["id"],
+                "document.approve_revision",
+                "technical_document",
+                document_id,
+                {"version": version, "sha256": row.checksum},
+            )
+            return document_data(row)
 
     def ticket_data(db, ticket):
         assigned = db.get(User, ticket.assigned_user_id)
@@ -895,6 +1056,7 @@ def create_app(
                 incident_data,
                 mission.data if mission else None,
                 events,
+                investigation_guides(db, incident_data["type"]),
             )
             audit(
                 db,
@@ -931,6 +1093,7 @@ def create_app(
                 incident_data,
                 mission_row.data if mission_row else None,
                 events_data,
+                investigation_guides(db, incident_data["type"]),
             )
             ticket_rows = db.scalars(
                 select(MaintenanceTicket).where(

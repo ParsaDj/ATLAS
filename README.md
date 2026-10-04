@@ -4,7 +4,7 @@ Independent robotics and AI portfolio project. Uses five simulated robots and en
 
 ## Current implementation
 
-ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, user administration, audit history, human-approved maintenance tickets, replacement mission proposals, and downloadable customer reports. The robotics integration includes machine authentication, mission polling, stable ROS event IDs, durable offline telemetry buffering, and a ROS 2 node that translates approved missions into Nav2 waypoint actions. Gazebo environment validation, document retrieval, and an optional hosted-model adapter remain future milestones.
+ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, user administration, audit history, human-approved maintenance tickets, replacement mission proposals, and downloadable customer reports. The robotics integration includes machine authentication, mission polling, stable ROS event IDs, durable offline telemetry buffering, and a ROS 2 node that translates approved missions into Nav2 waypoint actions. Gazebo environment validation and an optional hosted-model adapter remain future milestones.
 
 ## Run locally on macOS
 
@@ -51,7 +51,7 @@ curl http://127.0.0.1:8000/api/robots/robot-3/telemetry
 
 Use a returned mission ID with `GET /api/missions/{mission_id}` to inspect the failed mission. Incidents cite the first triggering event ID; disconnection has no triggering event and records the detection time instead. Historical events remain accessible through robot telemetry.
 
-Run `POST /api/incidents/{incident_id}/investigate` or select **Investigate incident** in the dashboard to produce an evidence-grounded explanation. The first implementation is deterministic and works without an API key or paid model. It reads only the incident's mission, referenced events, and approved local troubleshooting guides. Each result includes a confidence level, explicit limitations, a recommended next step, citations, and a read-only tool trace. It cannot create tickets, reschedule missions, or command robots.
+Run `POST /api/incidents/{incident_id}/investigate` or select **Investigate incident** in the dashboard to produce an evidence-grounded explanation. The first implementation is deterministic and works without an API key or paid model. It reads only the incident's mission, referenced events, and approved technical-document revisions. Every document citation carries a stable ID, version, and SHA-256 content hash. Bundled Markdown revisions seed fresh databases and remain the fallback for standalone evaluations. Administrators add immutable draft revisions through `POST /api/documents` and approve them with a separate endpoint; authenticated users can inspect approved revisions through the read-only document endpoints. The investigator cannot create tickets, reschedule missions, or command robots.
 
 Operators and administrators can draft a maintenance ticket from an open incident and assign it to an active technician account. Approval is a separate action. Only the assigned technician or an administrator can start and resolve the approved work. Resolving the ticket atomically resolves the incident and records the resolution. Ticket creation, approval, start, and resolution are attributed in the audit log.
 
@@ -142,7 +142,7 @@ Build the dashboard first. The nine tests cover authentication, incident evidenc
 - `apps/api/main.py`: API, persistence, mission transitions, heartbeat monitor.
 - `apps/api/reports.py`: escaped printable incident and mission report rendering.
 - `migrations/`: versioned SQLite/PostgreSQL schema changes managed by Alembic.
-- `apps/ai_agent/`: read-only evidence engine and approved troubleshooting guides.
+- `apps/ai_agent/`: read-only evidence engine and bundled technical-document revisions.
 - `apps/dashboard/`: React/TypeScript customer dashboard and browser tests.
 - `simulator/fleet.py`: reproducible synthetic fleet and JSONL event output.
 - `robotics/atlas_bridge/`: reliable transport core for the ROS 2 adapter.

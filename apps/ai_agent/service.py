@@ -5,6 +5,7 @@ queries the database, changes operational state, or controls a robot. A future
 LLM adapter can replace the renderer while keeping this evidence contract.
 """
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -16,38 +17,45 @@ class Guide:
     fault: str
     text: str
     next_step: str
+    version: str = "1.0"
+    checksum: str = ""
 
 
 _DOCUMENTS = Path(__file__).with_name("documents")
 
 
+def _guide(identifier: str, title: str, fault: str, filename: str, next_step: str) -> Guide:
+    text = (_DOCUMENTS / filename).read_text()
+    return Guide(identifier, title, fault, text, next_step, "1.0", sha256(text.encode()).hexdigest())
+
+
 GUIDES = (
-    Guide(
+    _guide(
         "DOC-BATTERY-001",
         "Low battery during inspection",
         "low_battery",
-        (_DOCUMENTS / "low-battery.md").read_text(),
+        "low-battery.md",
         "Inspect the recent battery trend and charging history before approving another mission.",
     ),
-    Guide(
+    _guide(
         "DOC-SENSOR-001",
         "Inspection sensor failure",
         "sensor_failure",
-        (_DOCUMENTS / "sensor-failure.md").read_text(),
+        "sensor-failure.md",
         "Review the sensor observations and run a calibration check before rescheduling the inspection.",
     ),
-    Guide(
+    _guide(
         "DOC-CONNECTION-001",
         "Robot heartbeat loss",
         "disconnection",
-        (_DOCUMENTS / "heartbeat-loss.md").read_text(),
+        "heartbeat-loss.md",
         "Check the robot process and network path, then confirm a fresh heartbeat before creating a replacement mission.",
     ),
-    Guide(
+    _guide(
         "DOC-NAVIGATION-001",
         "Navigation action failure",
         "navigation_failure",
-        (_DOCUMENTS / "navigation-failure.md").read_text(),
+        "navigation-failure.md",
         "Review the Nav2 result and local costmap before approving a replacement mission.",
     ),
 )
@@ -62,9 +70,10 @@ def investigate(
     incident: dict[str, Any],
     mission: dict[str, Any] | None,
     events: list[dict[str, Any]],
+    guides: list[Guide] | None = None,
 ) -> dict[str, Any]:
     """Build a conservative finding from supplied read-only evidence."""
-    guides = retrieve_guides(incident["type"])
+    guides = retrieve_guides(incident["type"]) if guides is None else guides
     referenced_ids = set(incident.get("event_ids", []))
     triggering = [event for event in events if event.get("event_id") in referenced_ids]
     citations: list[dict[str, str]] = []
@@ -73,7 +82,12 @@ def investigate(
     if mission:
         citations.append({"type": "mission", "id": mission["id"]})
     for guide in guides:
-        citations.append({"type": "document", "id": guide.id})
+        citations.append({
+            "type": "document",
+            "id": guide.id,
+            "version": guide.version,
+            "sha256": guide.checksum,
+        })
 
     fault = incident["type"]
     robot = incident["robot_id"]
