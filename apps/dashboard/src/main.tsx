@@ -7,6 +7,7 @@ import {
   type Incident,
   type Event,
   type Investigation,
+  type MaintenanceTicket,
   type User,
   type AuditLog,
   type LoginResult,
@@ -1082,6 +1083,9 @@ function Details({
   const [error, setError] = useState("");
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState("");
+  const [ticketSummary, setTicketSummary] = useState("");
+  const [technician, setTechnician] = useState("");
+  const [resolution, setResolution] = useState("");
   const [investigation, setInvestigation] = useState<Investigation | null>(
     null,
   );
@@ -1100,6 +1104,12 @@ function Details({
           ? `/api/events?${incident.mission_id ? "mission_id=" + encodeURIComponent(incident.mission_id) : "robot_id=" + encodeURIComponent(incident.robot_id)}&limit=20`
           : null;
   const events = useResource<Event[]>(eventPath, revision);
+  const tickets = useResource<MaintenanceTicket[]>(
+    incident
+      ? `/api/tickets?incident_id=${encodeURIComponent(incident.id)}`
+      : null,
+    revision,
+  );
   async function action(name: string) {
     setBusy(true);
     setError("");
@@ -1131,6 +1141,51 @@ function Details({
           { method: "POST" },
         ),
       );
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function createTicket() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/incidents/${selection.id}/tickets`, {
+        method: "POST",
+        body: JSON.stringify({
+          summary: ticketSummary,
+          assigned_technician: technician,
+        }),
+      });
+      setTicketSummary("");
+      setTechnician("");
+      setMessage("Maintenance ticket drafted for human approval.");
+      onChange();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function ticketAction(ticket: MaintenanceTicket, name: string) {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/tickets/${ticket.id}/${name}`, {
+        method: "POST",
+        body:
+          name === "resolve" ? JSON.stringify({ resolution }) : undefined,
+      });
+      setResolution("");
+      setMessage(
+        name === "approve"
+          ? "Maintenance work approved."
+          : name === "start"
+            ? "Maintenance work started."
+            : "Ticket and incident resolved.",
+      );
+      onChange();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -1333,6 +1388,136 @@ function Details({
                     <small>{investigation.generated_by}</small>
                   </section>
                 )}
+                <h4>Maintenance workflow</h4>
+                {tickets.error && (
+                  <div role="alert" className="error">
+                    Maintenance tickets unavailable: {tickets.error}
+                  </div>
+                )}
+                {tickets.data?.length ? (
+                  tickets.data.map((ticket) => (
+                    <section
+                      className="ticket-card"
+                      aria-label="Maintenance ticket"
+                      key={ticket.id}
+                    >
+                      <div className="ticket-heading">
+                        <strong>{ticket.summary}</strong>
+                        <Badge status={ticket.status} />
+                      </div>
+                      <p>
+                        Assigned to <strong>{ticket.assigned_technician}</strong>
+                        <br />
+                        <small>
+                          Drafted by {ticket.created_by} · {time(ticket.created_at)}
+                        </small>
+                      </p>
+                      {ticket.approved_by && (
+                        <p>
+                          Approved by {ticket.approved_by} ·{" "}
+                          {time(ticket.approved_at)}
+                        </p>
+                      )}
+                      {ticket.resolution && (
+                        <p className="notice">Resolution: {ticket.resolution}</p>
+                      )}
+                      {ticket.status === "draft" && role !== "technician" && (
+                        <button
+                          className="primary"
+                          disabled={busy}
+                          onClick={() => void ticketAction(ticket, "approve")}
+                        >
+                          Approve maintenance work
+                        </button>
+                      )}
+                      {ticket.status === "approved" &&
+                        ["technician", "administrator"].includes(role) && (
+                          <button
+                            className="primary"
+                            disabled={busy}
+                            onClick={() => void ticketAction(ticket, "start")}
+                          >
+                            Start maintenance work
+                          </button>
+                        )}
+                      {ticket.status === "in_progress" &&
+                        ["technician", "administrator"].includes(role) && (
+                          <form
+                            className="ticket-form"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              void ticketAction(ticket, "resolve");
+                            }}
+                          >
+                            <label>
+                              Resolution
+                              <textarea
+                                required
+                                minLength={3}
+                                maxLength={2000}
+                                value={resolution}
+                                onChange={(event) =>
+                                  setResolution(event.target.value)
+                                }
+                                placeholder="Describe the completed maintenance and verification"
+                              />
+                            </label>
+                            <button
+                              className="primary"
+                              disabled={busy || resolution.trim().length < 3}
+                            >
+                              Resolve ticket and incident
+                            </button>
+                          </form>
+                        )}
+                    </section>
+                  ))
+                ) : role !== "technician" && incident.status === "open" ? (
+                  <form
+                    className="ticket-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void createTicket();
+                    }}
+                  >
+                    <label>
+                      Work summary
+                      <textarea
+                        required
+                        minLength={3}
+                        maxLength={500}
+                        value={ticketSummary}
+                        onChange={(event) => setTicketSummary(event.target.value)}
+                        placeholder="What should the technician inspect or repair?"
+                      />
+                    </label>
+                    <label>
+                      Assigned technician username
+                      <input
+                        required
+                        minLength={3}
+                        maxLength={50}
+                        pattern="[a-z0-9._-]+"
+                        value={technician}
+                        onChange={(event) => setTechnician(event.target.value)}
+                        placeholder="field-tech"
+                      />
+                    </label>
+                    <button
+                      disabled={
+                        busy ||
+                        ticketSummary.trim().length < 3 ||
+                        technician.trim().length < 3
+                      }
+                    >
+                      Draft maintenance ticket
+                    </button>
+                  </form>
+                ) : tickets.data ? (
+                  <p className="notice">No maintenance ticket is available.</p>
+                ) : (
+                  <p>Loading maintenance workflow…</p>
+                )}
                 <h4>Triggering evidence</h4>
                 {incident.event_ids.length ? (
                   incident.event_ids.map((id) => <Evidence key={id} id={id} />)
@@ -1368,6 +1553,8 @@ function Details({
                     <strong>
                       {e.sensor_status === "failed"
                         ? "Sensor failure"
+                        : e.navigation_status === "failed"
+                          ? "Navigation failure"
                         : e.battery < 20
                           ? "Low battery"
                           : "Telemetry received"}

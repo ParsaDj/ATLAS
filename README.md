@@ -4,7 +4,7 @@ Independent robotics and AI portfolio project. Uses five simulated robots and en
 
 ## Current implementation
 
-ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, user administration, and audit history. The robotics integration includes machine authentication, mission polling, stable ROS event IDs, durable offline telemetry buffering, and a ROS 2 node that translates approved missions into Nav2 waypoint actions. Gazebo environment validation, maintenance tickets, and an optional hosted-model adapter remain future milestones.
+ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, user administration, audit history, and human-approved maintenance tickets. The robotics integration includes machine authentication, mission polling, stable ROS event IDs, durable offline telemetry buffering, and a ROS 2 node that translates approved missions into Nav2 waypoint actions. Gazebo environment validation, downloadable customer reports, and an optional hosted-model adapter remain future milestones.
 
 ## Run locally on macOS
 
@@ -52,6 +52,8 @@ curl http://127.0.0.1:8000/api/robots/robot-3/telemetry
 Use a returned mission ID with `GET /api/missions/{mission_id}` to inspect the failed mission. Incidents cite the first triggering event ID; disconnection has no triggering event and records the detection time instead. Historical events remain accessible through robot telemetry.
 
 Run `POST /api/incidents/{incident_id}/investigate` or select **Investigate incident** in the dashboard to produce an evidence-grounded explanation. The first implementation is deterministic and works without an API key or paid model. It reads only the incident's mission, referenced events, and approved local troubleshooting guides. Each result includes a confidence level, explicit limitations, a recommended next step, citations, and a read-only tool trace. It cannot create tickets, reschedule missions, or command robots.
+
+Operators and administrators can draft a maintenance ticket from an open incident and assign it to an active technician account. Approval is a separate action. Only the assigned technician or an administrator can start and resolve the approved work. Resolving the ticket atomically resolves the incident and records the resolution. Ticket creation, approval, start, and resolution are attributed in the audit log.
 
 A rerun creates new missions and retains previous records. After the simulator exits, the heartbeat monitor will eventually mark the remaining robots disconnected too. Inspect the printed incident list at the end of the demo for the three intended faults. An interrupted run can leave running missions. The simulator checks for these before creating any new missions. Find them with `GET /api/missions?status=running`, then cancel each using `POST /api/missions/{id}/cancel` with `{"reason":"Restart interrupted demo"}`. Cancellation is a terminal state and retains all evidence. You can then rerun the simulator. To start a separate dataset without removing data, first run `DATABASE_URL=sqlite:///./another-demo.db alembic upgrade head`, then start the API with the same `DATABASE_URL`.
 
@@ -111,7 +113,7 @@ For local schema changes, update the SQLAlchemy models, generate a candidate rev
 .venv/bin/python -m pytest -q
 ```
 
-Tests use isolated SQLite databases and a controllable clock, including a full five-robot scenario, concurrent duplicate delivery, concurrent mission approval, missing first heartbeat, recovery, validation, out-of-order events, invalid mission transitions, and incident investigation. A separate reproducible evaluation covers 120 synthetic incidents across low battery, sensor failure, and disconnection cases. GitHub Actions is configured to run the workflow suite against both SQLite and a PostgreSQL 17 service. For your own PostgreSQL test database, set `ATLAS_TEST_POSTGRES_URL` before invoking pytest; each test uses an isolated temporary schema and removes only that schema afterward. The test user needs schema creation permission.
+Tests use isolated SQLite databases and a controllable clock, including a full five-robot scenario, concurrent duplicate delivery, concurrent mission approval, missing first heartbeat, recovery, validation, out-of-order events, invalid mission transitions, incident investigation, and maintenance authorization. A separate reproducible evaluation covers 120 synthetic incidents across low battery, sensor failure, and disconnection cases. GitHub Actions is configured to run the workflow suite against both SQLite and a PostgreSQL 17 service. For your own PostgreSQL test database, set `ATLAS_TEST_POSTGRES_URL` before invoking pytest; each test uses an isolated temporary schema and removes only that schema afterward. The test user needs schema creation permission.
 
 Current verification totals are recorded in `docs/evaluation.md`. The backend GitHub Actions job runs against both SQLite and PostgreSQL 17, and the dashboard job builds the UI and runs browser workflows. Docker Compose itself remains unverified locally because Docker is unavailable.
 
@@ -129,7 +131,7 @@ pnpm exec playwright install chromium
 ATLAS_TEST_PYTHON=../../.venv/bin/python pnpm test:e2e
 ```
 
-Build the dashboard first. The six tests cover authentication, incident evidence, mission creation/approval/cancellation, audit administration, API outage/recovery, mobile navigation, and a dashboard-approved mission completing through a real worker process. CI also runs these workflows against a real API (SQLite).
+Build the dashboard first. The seven tests cover authentication, incident evidence, mission creation/approval/cancellation, audit administration, the complete maintenance workflow, API outage/recovery, mobile navigation, and a dashboard-approved mission completing through a real worker process. CI also runs these workflows against a real API (SQLite).
 
 ## Project map
 
