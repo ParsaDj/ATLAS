@@ -128,6 +128,8 @@ def mission_report(
     body = f"""
 <section><h2>Mission facts</h2>{table([
     ('Mission ID', mission['id']), ('Robot', mission['robot_id']), ('Status', mission['status']),
+    ('Replacement for mission', mission.get('replacement_for_mission_id')),
+    ('Source incident', mission.get('source_incident_id')),
     ('Created', mission['created_at']), ('Started', mission.get('started_at')), ('Ended', mission.get('ended_at')),
     ('Completed waypoints', f"{mission.get('completed_waypoints', 0)} of {len(mission['waypoints'])}"),
     ('Cancellation reason', mission.get('cancellation_reason')),

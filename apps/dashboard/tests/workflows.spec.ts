@@ -286,6 +286,25 @@ test("operator downloads incident and inspection reports", async ({ page }) => {
   expect(await readFile(missionPath!, "utf8")).toContain("Telemetry summary");
 });
 
+test("operator edits, proposes and approves a replacement mission", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Incidents/ }).click();
+  await page
+    .getByRole("row")
+    .filter({ hasText: "sensor failure" })
+    .getByRole("button", { name: /Investigate/ })
+    .click();
+  const drawer = page.getByRole("dialog", { name: "Incident evidence" });
+  await drawer.getByLabel("Replacement waypoint 1 X").fill("9");
+  await drawer.getByRole("button", { name: "Propose replacement mission" }).click();
+  await expect(drawer.getByText("pending", { exact: true })).toBeVisible();
+  await drawer.getByRole("button", { name: "Approve replacement mission" }).click();
+  await expect(drawer.getByText("running", { exact: true })).toBeVisible();
+  await drawer.getByRole("button", { name: "Open replacement mission" }).click();
+  const missionDrawer = page.getByRole("dialog", { name: "Mission details" });
+  await expect(missionDrawer.getByText("1 · (9, 3)")).toBeVisible();
+});
+
 test("approved dashboard mission executes in a real worker process", async ({
   page,
   request,
