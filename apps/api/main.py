@@ -23,6 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from apps.ai_agent.service import GUIDES, Guide, investigate as investigate_records
+from apps.ai_agent.llm import OpenAICompatibleClient, investigate_with_model
 from apps.api.migrations import require_current_schema
 from apps.api.observability import Metrics, install_observability, tracer_provider
 from apps.api.reports import incident_report, mission_report
@@ -234,6 +235,8 @@ def create_app(
     otlp_endpoint=None,
     request_log=None,
     security_clock=None,
+    investigator_mode=None,
+    llm_client=None,
 ):
     engine = create_engine(database_url or os.getenv("DATABASE_URL", "sqlite:///./atlas.db"))
     if engine.dialect.name == "sqlite":
@@ -256,6 +259,18 @@ def create_app(
     bridge_key = telemetry_api_key or os.getenv("ATLAS_TELEMETRY_API_KEY")
     if bridge_key and len(bridge_key) < 24:
         raise ValueError("ATLAS_TELEMETRY_API_KEY must contain at least 24 characters")
+    selected_investigator = investigator_mode or os.getenv(
+        "ATLAS_INVESTIGATOR_MODE", "deterministic"
+    )
+    if selected_investigator not in {"deterministic", "llm"}:
+        raise ValueError("ATLAS_INVESTIGATOR_MODE must be deterministic or llm")
+    if selected_investigator == "llm" and llm_client is None:
+        llm_client = OpenAICompatibleClient(
+            api_key=os.getenv("ATLAS_LLM_API_KEY", ""),
+            model=os.getenv("ATLAS_LLM_MODEL", ""),
+            base_url=os.getenv("ATLAS_LLM_BASE_URL", "https://api.openai.com/v1"),
+            timeout=float(os.getenv("ATLAS_LLM_TIMEOUT_SECONDS", "30")),
+        )
 
     def authorize_bridge(x_atlas_bridge_key: str | None = Header(default=None)):
         if not bridge_key:
@@ -1118,11 +1133,12 @@ def create_app(
             event_ids = incident_data.get("event_ids", [])
             evidence = [db.get(Telemetry, event_id) for event_id in event_ids]
             events = [record.data for record in evidence if record is not None]
-            result = investigate_records(
-                incident_data,
-                mission.data if mission else None,
-                events,
-                investigation_guides(db, incident_data["type"]),
+            guides = investigation_guides(db, incident_data["type"])
+            inputs = (incident_data, mission.data if mission else None, events, guides)
+            result = (
+                investigate_with_model(*inputs, llm_client)
+                if selected_investigator == "llm"
+                else investigate_records(*inputs)
             )
             audit(
                 db,
@@ -1130,7 +1146,11 @@ def create_app(
                 "incident.investigate",
                 "incident",
                 incident_id,
-                {"confidence": result["confidence"]},
+                {
+                    "confidence": result["confidence"],
+                    "generated_by": result["generated_by"],
+                    "prompt_version": result.get("model", {}).get("prompt_version"),
+                },
             )
             return result
 

@@ -1769,6 +1769,32 @@ function Details({
                   >
                     <Badge status={investigation.confidence} />
                     <p>{investigation.finding}</p>
+                    {investigation.hypotheses?.length ? (
+                      <>
+                        <h4>Ranked hypotheses</h4>
+                        <ol>
+                          {investigation.hypotheses.map((hypothesis) => (
+                            <li key={`${hypothesis.cause}:${hypothesis.confidence}`}>
+                              <strong>{Math.round(hypothesis.confidence * 100)}%</strong>{" "}
+                              {hypothesis.cause}
+                              {hypothesis.evidence_ids.length ? (
+                                <small> Evidence: {hypothesis.evidence_ids.join(", ")}</small>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ol>
+                      </>
+                    ) : null}
+                    {investigation.missing_evidence?.length ? (
+                      <>
+                        <h4>Missing evidence</h4>
+                        <ul>
+                          {investigation.missing_evidence.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : null}
                     <h4>Suggested next step</h4>
                     <p>{investigation.recommended_next_step}</p>
                     <h4>Limits</h4>
@@ -1787,7 +1813,12 @@ function Details({
                         </code>
                       ))}
                     </div>
-                    <small>{investigation.generated_by}</small>
+                    <small>
+                      {investigation.generated_by}
+                      {investigation.model
+                        ? ` · ${investigation.model.status} · ${investigation.model.model} · ${investigation.model.prompt_version}`
+                        : ""}
+                    </small>
                   </section>
                 )}
                 <h4>Maintenance workflow</h4>

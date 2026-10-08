@@ -64,6 +64,12 @@ export type Investigation = {
   finding: string;
   confidence: "supported" | "limited" | "insufficient";
   limitations: string[];
+  hypotheses?: {
+    cause: string;
+    confidence: number;
+    evidence_ids: string[];
+  }[];
+  missing_evidence?: string[];
   recommended_next_step: string;
   citations: {
     type: "event" | "mission" | "document";
@@ -72,6 +78,12 @@ export type Investigation = {
     sha256?: string;
   }[];
   generated_by: string;
+  model?: {
+    status: "generated" | "fallback";
+    model: string;
+    prompt_version: string;
+    evidence_sha256: string;
+  };
 };
 export type User = {
   id: string;

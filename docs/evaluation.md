@@ -10,11 +10,22 @@ SQLite is verified locally, and the initial GitHub Actions run passed the workfl
 
 `tests/evaluations/test_incident_dataset.py` generates 120 reproducible scenarios across low battery, sensor failure, and disconnection faults. Expected confidence and document IDs live in the test assertions, outside the records passed to the investigator. The suite requires the correct approved guide, mission citation, allowed read-only tool set, and an explicit limitation for every case. Additional API tests cover missing incidents, absent referenced events, unknown fault types, citation content, and conservative uncertainty.
 
-All 120 controlled cases pass the current contract, so tool selection and required evidence citation are 100% for this synthetic dataset. This is a deterministic baseline rather than a measurement of a general-purpose LLM. Dataset versioning and model/prompt versioning will be added if a hosted model adapter is introduced.
+All 120 controlled cases pass the current contract, so tool selection and required evidence citation are 100% for this synthetic dataset. This is a deterministic baseline rather than a measurement of a general-purpose LLM.
+
+The optional model adapter records the model name, prompt version, and SHA-256
+digest of its exact evidence envelope. Contract tests reject extra response
+fields, fabricated citations, omitted operational evidence, hypotheses that
+reference unauthorized records, and instructions embedded in technical
+documents. Provider and validation failures use the deterministic result.
+
+These are boundary and adversarial tests, not a measurement of live-model
+diagnostic accuracy. A named model, frozen evaluation dataset, repeated runs,
+and published citation and unsupported-claim measurements are still required
+before making an accuracy claim.
 
 ## Initial local verification
 
-Python 3.13: 209 tests pass locally, including 120 investigation evaluation cases, five migration checks, observability and credential-redaction checks, login throttling and browser security headers, versioned document retrieval and approval, authentication/authorization, maintenance-ticket, escaped report and replacement-mission coverage, bridge authentication, durable outbox and Nav2 mission-reconciliation behavior, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL verification runs in GitHub Actions.
+Python 3.13: 216 tests pass locally, including 120 investigation evaluation cases, seven optional-model contract and adversarial checks, five migration checks, observability and credential-redaction checks, login throttling and browser security headers, versioned document retrieval and approval, authentication/authorization, maintenance-ticket, escaped report and replacement-mission coverage, bridge authentication, durable outbox and Nav2 mission-reconciliation behavior, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL verification runs in GitHub Actions.
 
 ## Reliability review
 

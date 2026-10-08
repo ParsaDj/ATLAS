@@ -73,7 +73,7 @@ flowchart LR
     API --> DB[(PostgreSQL)]
     API --> Incident[Incident]
     Incident --> Evidence[Mission + cited events]
-    Evidence --> Investigator[Deterministic investigator]
+    Evidence --> Investigator[Deterministic or optional LLM investigator]
     Docs[Approved versioned documents] --> Investigator
     Investigator --> Finding[Finding + uncertainty + citations]
     Finding --> Approval{Human approval}
@@ -90,8 +90,9 @@ flowchart LR
   protection.
 - React and TypeScript operations dashboard for fleet status, missions,
   incidents, evidence, technical documents, approvals, users, and audit history.
-- Deterministic evidence-grounded investigation with immutable document
-  revisions, SHA-256 provenance, explicit limitations, and read-only tools.
+- Deterministic evidence-grounded investigation plus an optional model-backed
+  adapter with strict structured output, citation allowlisting, immutable
+  document revisions, SHA-256 provenance, and a safe offline fallback.
 - Human-approved maintenance tickets, replacement missions, and escaped
   printable incident and mission reports.
 - ROS-independent bridge core with machine authentication, stable event IDs,
@@ -132,8 +133,14 @@ with role checks, CSRF protection, human approval, and audit attribution.
 Findings cite exact event IDs and document versions with content hashes. Missing
 referenced evidence produces an insufficient result. The engine distinguishes
 what the records establish from plausible causes that they cannot establish.
-The current deterministic implementation creates a measurable baseline for a
-future optional model adapter.
+The deterministic implementation creates a measurable baseline for the
+optional model adapter. The model receives only the incident envelope selected
+by the API: its linked mission, cited events, and approved technical-document
+revisions. Its response must match a closed JSON schema and cite only IDs in
+that envelope. Fabricated citations, missing required operational evidence,
+malformed output, timeouts, and provider errors return the deterministic
+baseline. Prompt, model, document, and evidence-envelope versions remain in the
+result.
 
 ## Reliability evidence
 
@@ -148,7 +155,7 @@ not just endpoint coverage:
 - an interrupted bridge retains events and replays them without duplication;
 - missing cited evidence forces an insufficient investigation.
 
-The current verification includes **209 backend tests**, **120 reproducible
+The current verification includes **216 backend tests**, **120 reproducible
 investigation cases**, and **10 browser workflows**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real
 API. Detailed scope and limitations are recorded in
@@ -158,8 +165,9 @@ API. Detailed scope and limitations are recorded in
 
 - It is not a physical robot safety controller and never sends raw motor
   commands.
-- The investigation engine is deterministic; it is not presented as an
-  autonomous LLM agent.
+- The optional LLM investigator requires a separately configured hosted or
+  local JSON-schema-capable model. Its quality has contract and adversarial
+  coverage, but it does not yet have a published live-model accuracy benchmark.
 - The ROS 2/Nav2 adapter has unit and contract coverage, but its Gazebo runtime
   acceptance sequence still requires Ubuntu 24.04, ROS 2 Jazzy, and Gazebo
   Harmonic.
@@ -216,6 +224,22 @@ docker compose down
 
 The `atlas-data` volume preserves PostgreSQL data. Use `docker compose down -v`
 only when you intentionally want a fresh demo database.
+
+### Optional model-backed investigation
+
+ATLAS uses the deterministic investigator unless explicitly enabled. To use a
+compatible model endpoint, set these values before starting the API:
+
+```sh
+export ATLAS_INVESTIGATOR_MODE=llm
+export ATLAS_LLM_API_KEY='your-provider-key'
+export ATLAS_LLM_MODEL='your-json-schema-capable-model'
+export ATLAS_LLM_BASE_URL='https://api.openai.com/v1'
+```
+
+The model endpoint must implement the OpenAI-compatible chat-completions JSON
+schema response format. The API key stays server-side. If configuration is
+absent, ATLAS does not contact an external model provider.
 
 ## Local development without Docker
 
