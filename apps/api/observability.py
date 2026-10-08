@@ -180,3 +180,27 @@ def install_observability(app, provider, metrics, logger=None):
                         "duration_ms": round(duration * 1000, 3),
                     },
                 )
+
+    @app.middleware("http")
+    async def security_headers(request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        if request.url.path in ("/docs", "/redoc"):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; script-src https://cdn.jsdelivr.net 'unsafe-inline'; "
+                "style-src https://cdn.jsdelivr.net 'unsafe-inline'; img-src data:; connect-src 'self'"
+            )
+        else:
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; "
+                "script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+            )
+        if request.url.scheme == "https":
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+        return response

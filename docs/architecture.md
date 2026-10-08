@@ -36,6 +36,19 @@ Local and CI tests migrate each isolated database before creating the applicatio
 
 Human workflows use local accounts with `operator`, `technician`, or `administrator` roles. Passwords are stored as salted scrypt hashes. A successful login creates an eight-hour random server-side session; the browser receives only an HttpOnly, SameSite=Strict cookie and a separate per-session CSRF token. Mission writes require operator or administrator access plus the CSRF header. Incident investigation accepts any authenticated role. User creation and audit retrieval require an administrator.
 
+Authentication attempts are limited per direct client address to five failures
+in a rolling five-minute window. A blocked response includes `Retry-After`, a
+successful login clears the failure history, and unknown or inactive accounts
+still perform password-hash verification to reduce username timing leakage.
+This limiter is process-local because the prototype intentionally runs one API
+worker. A distributed deployment requires a shared or gateway-level limiter.
+
+Responses deny framing and MIME sniffing, restrict referrer and browser feature
+access, isolate the opener, and apply route-appropriate Content Security Policy.
+HTTPS responses include one-year HSTS. The interactive API documentation permits
+only its required documentation CDN resources; application routes use same-origin
+scripts and resources.
+
 Mission creation, approval, cancellation, incident investigation, user creation, login, and logout write append-only audit records. Domain mutations and their audit records share the same database transaction. Audit entries contain actor, action, resource, timestamp, and bounded operational details; they never contain passwords, session tokens, or CSRF tokens. Robot telemetry uses a separate machine credential in the `X-ATLAS-Bridge-Key` header and never reuses a human session or CSRF token. The API fails closed when the bridge key is not configured. The local demo uses one facility-wide key; per-robot credentials and rotation are required before a remote or physical deployment.
 
 Maintenance tickets transition `draft → approved → in_progress → resolved`. Operators and administrators create and approve tickets. Technicians can start and resolve only work assigned to their account; administrators may act as an operational override. Resolving a ticket and its linked incident occurs in one transaction. Every transition is audited with the human actor. One incident can have only one maintenance ticket in this version.

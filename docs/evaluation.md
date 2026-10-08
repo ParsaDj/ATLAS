@@ -14,7 +14,7 @@ All 120 controlled cases pass the current contract, so tool selection and requir
 
 ## Initial local verification
 
-Python 3.13: 207 tests pass locally, including 120 investigation evaluation cases, five migration checks, observability and credential-redaction checks, versioned document retrieval and approval, authentication/authorization, maintenance-ticket, escaped report and replacement-mission coverage, bridge authentication, durable outbox and Nav2 mission-reconciliation behavior, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL verification runs in GitHub Actions.
+Python 3.13: 209 tests pass locally, including 120 investigation evaluation cases, five migration checks, observability and credential-redaction checks, login throttling and browser security headers, versioned document retrieval and approval, authentication/authorization, maintenance-ticket, escaped report and replacement-mission coverage, bridge authentication, durable outbox and Nav2 mission-reconciliation behavior, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL verification runs in GitHub Actions.
 
 ## Reliability review
 
@@ -41,3 +41,7 @@ Tests verify separate liveness and database-readiness responses, accepted and re
 ## Authentication validation
 
 Tests cover missing authentication, missing CSRF protection, administrator user creation without credential disclosure, technician mission-write denial, authenticated incident investigation, audit attribution, eight-hour session expiry, and simulator login. The browser suite includes administrator user creation, audit-history display, and sign-out. Authentication is local-only and does not claim readiness for an internet-facing deployment.
+
+Five failed logins from one client trigger a five-minute limit with a `Retry-After`
+response; the test advances an injected clock and verifies successful recovery.
+Security-header coverage includes error responses and HTTPS-only HSTS behavior.

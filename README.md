@@ -67,6 +67,12 @@ List missions with `GET /api/missions?robot_id=robot-3&status=failed`, retrieve 
 
 The dashboard uses the actual API and refreshes every five seconds. Sign-in uses an HttpOnly server-side session and a per-session CSRF token. Administrators manage local operator, technician, and administrator accounts and can review the audit history. Operators and administrators create, approve, and cancel missions; all authenticated roles can investigate incidents. Northstar Industries is a fictional customer. The position view is a synthetic coordinate plot, not a surveyed facility map.
 
+Login failures are limited to five attempts per client within five minutes. API
+responses include content-type, framing, referrer, permissions, opener, and
+content-security protections; HTTPS responses also include HSTS. The in-process
+login limit supports the documented single-worker prototype. An internet-facing
+deployment still requires gateway-level rate limiting across instances.
+
 Requires Node.js 22.12+ and pnpm 11.25.0. Install pnpm using `npm install --global pnpm@11.25.0`, then from the repository root:
 
 ```sh
@@ -158,4 +164,7 @@ Build the dashboard first. The ten tests cover authentication, incident evidence
 - `docs/safety.md`: boundaries and approval model.
 - `docs/evaluation.md`: tested behavior and limitations.
 
-This is a local development prototype. A license and repository publication should be selected by the project owner before distributing it as open source.
+This is a local development prototype, not a physical robot safety system. It is
+available under the [Apache License 2.0](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md)
+for contribution requirements and [SECURITY.md](SECURITY.md) for private
+vulnerability reporting and deployment expectations.
