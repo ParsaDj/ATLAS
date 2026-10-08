@@ -4,7 +4,7 @@ Independent robotics and AI portfolio project. Uses five simulated robots and en
 
 ## Current implementation
 
-ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, a versioned technical-document library, user administration, audit history, human-approved maintenance tickets, replacement mission proposals, and downloadable customer reports. The robotics integration includes machine authentication, mission polling, stable ROS event IDs, durable offline telemetry buffering, and a ROS 2 node that translates approved missions into Nav2 waypoint actions. Gazebo environment validation and an optional hosted-model adapter remain future milestones.
+ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, request correlation, operational metrics, OpenTelemetry tracing, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, a versioned technical-document library, user administration, audit history, human-approved maintenance tickets, replacement mission proposals, and downloadable customer reports. The robotics integration includes machine authentication, mission polling, stable ROS event IDs, durable offline telemetry buffering, and a ROS 2 node that translates approved missions into Nav2 waypoint actions. Gazebo environment validation and an optional hosted-model adapter remain future milestones.
 
 ## Run locally on macOS
 
@@ -106,6 +106,10 @@ docker compose --profile demo run --rm simulator
 ```
 
 The multi-stage Dockerfile builds the dashboard and serves it through the API on port 8000. The API binds to loopback. PostgreSQL persists in the `atlas-data` volume; `docker compose down` retains it. Simulator output inside its disposable container is ephemeral; use the local simulator against the Compose API to retain `events.jsonl` locally.
+
+`GET /health` is a process liveness probe. `GET /ready` verifies database access, and Compose uses it before starting dependent services. `GET /metrics` returns Prometheus text metrics for request counts and durations plus robot, mission, and incident state. Responses include `X-Request-ID`; a caller may supply a value containing letters, digits, `.`, `_`, `:`, or `-`, up to 128 characters. Request logs are structured JSON and contain the route template, status, duration, correlation ID, and trace ID without headers, credentials, query strings, or request bodies.
+
+Every request creates an OpenTelemetry server span. Spans remain local unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set to an OTLP/HTTP collector base URL such as `http://localhost:4318`; when configured, ATLAS exports them to `/v1/traces`. This is optional and the application remains fully usable without a collector.
 
 `DATABASE_URL` selects the database. `.env.example` documents its format; the Python service does not automatically load `.env`. The container runs `alembic upgrade head` before starting Uvicorn. Existing pre-Alembic ATLAS databases are adopted by the initial migration after their table shape is validated, preserving their records.
 

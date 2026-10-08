@@ -24,7 +24,7 @@ Missions transition `pending → running → completed|failed`. Pending or runni
 
 Telemetry insertion, snapshot update, incident creation, and failure transition share one database transaction. A unique telemetry primary key and incident deduplication key protect retries. Per-mission fault keys collapse repeated samples for the same fault into one incident. For unassigned robots, fault incidents deduplicate by event ID only; fault episode grouping is deferred.
 
-PostgreSQL uses robot row locks to serialize conflicting writes. SQLite uses `BEGIN IMMEDIATE` transactions because it lacks equivalent row locks. SQLite is intended for the small local demo, not high-throughput ingestion. Mission, robot, telemetry, and incident payloads currently use JSON columns; schema normalization, foreign keys, and indexes should precede larger datasets.
+PostgreSQL uses robot row locks to serialize conflicting writes. SQLite uses `BEGIN IMMEDIATE` transactions because it lacks equivalent row locks. SQLite is intended for the small local demo, not high-throughput ingestion. API payloads remain in JSON columns, while immutable mission, telemetry, and incident identifiers and timestamps are also stored in indexed relational columns. Robot and mission foreign keys protect references, and an Alembic backfill preserves existing JSON records.
 
 ## Schema migrations
 
@@ -59,9 +59,15 @@ The outbox is a delivery mechanism rather than a safety controller. Nav2 remains
 
 The heartbeat monitor runs inside one API process. Do not use multiple workers for this prototype. Database exceptions are logged and retried at the next interval. A separate scheduled worker and explicit watchdog health should precede production deployment.
 
+## Observability
+
+Each HTTP request receives an `X-Request-ID` response header and a server span. Valid caller-supplied IDs are retained; other values are replaced. Structured JSON completion logs contain only the method, matched route template, status, duration, request ID, and trace ID. They omit headers, query strings, request bodies, credentials, and telemetry payloads.
+
+OpenTelemetry uses the `atlas-api` service resource. Setting `OTEL_EXPORTER_OTLP_ENDPOINT` enables batched OTLP/HTTP trace export; without it, span creation has no external dependency. `/health` reports process liveness, while `/ready` checks database connectivity. `/metrics` uses Prometheus text format and exposes process uptime, in-progress and completed request measurements, and current robot, mission, and incident state counts. HTTP metrics label matched route templates instead of concrete resource IDs to prevent unbounded label cardinality. Metrics are process-local and reset when the API restarts.
+
 ## API
 
-`GET /health`; `GET /api/robots`; `GET /api/robots/{id}`; `GET /api/robots/{id}/telemetry?limit=100`; `GET /api/missions`; `POST /api/missions`; `GET /api/missions/{id}`; `POST /api/missions/{id}/approve`; `POST /api/missions/{id}/cancel`; `GET /api/missions/{id}/report.html`; `GET /api/events`; `GET /api/events/{event_id}`; `POST /api/telemetry`; `GET /api/incidents`; `GET /api/incidents/{id}`; `POST /api/incidents/{id}/investigate`; `GET /api/incidents/{id}/report.html`; `POST /api/incidents/{id}/replacement-missions`; `POST /api/incidents/{id}/tickets`; `GET /api/tickets`; `GET /api/tickets/{id}`; `POST /api/tickets/{id}/approve`; `POST /api/tickets/{id}/start`; `POST /api/tickets/{id}/resolve`; `GET /api/documents`; `GET /api/documents/{id}/versions/{version}`; `POST /api/documents`; `POST /api/documents/{id}/versions/{version}/approve`.
+`GET /health`; `GET /ready`; `GET /metrics`; `GET /api/robots`; `GET /api/robots/{id}`; `GET /api/robots/{id}/telemetry?limit=100`; `GET /api/missions`; `POST /api/missions`; `GET /api/missions/{id}`; `POST /api/missions/{id}/approve`; `POST /api/missions/{id}/cancel`; `GET /api/missions/{id}/report.html`; `GET /api/events`; `GET /api/events/{event_id}`; `POST /api/telemetry`; `GET /api/incidents`; `GET /api/incidents/{id}`; `POST /api/incidents/{id}/investigate`; `GET /api/incidents/{id}/report.html`; `POST /api/incidents/{id}/replacement-missions`; `POST /api/incidents/{id}/tickets`; `GET /api/tickets`; `GET /api/tickets/{id}`; `POST /api/tickets/{id}/approve`; `POST /api/tickets/{id}/start`; `POST /api/tickets/{id}/resolve`; `GET /api/documents`; `GET /api/documents/{id}/versions/{version}`; `POST /api/documents`; `POST /api/documents/{id}/versions/{version}/approve`.
 
 OpenAPI schemas and request examples are available at `/docs`.
 
@@ -71,7 +77,7 @@ The API loads one incident, its linked mission, the exact event identifiers reco
 
 This deterministic renderer is the first agent contract and requires no paid model. A later LLM adapter may render the same evidence package, but the API remains responsible for record access and any future authorization. Technical documents use immutable `(id, version)` keys, an approval flag, a fault classification, and a SHA-256 content hash. Fresh databases seed the bundled Markdown revisions. Administrators may add a draft revision but cannot overwrite an existing one. A separate administrator action approves it for retrieval; creation and approval are audited independently. The direct service fallback keeps standalone evaluation independent of a running database.
 
-List endpoints for missions, events, incidents and robot telemetry support bounded limit/offset pagination with deterministic ordering. Event and incident lists filter by robot or mission; mission lists filter by robot and state. Offset pagination is a local-demo convenience; concurrently arriving data can shift page boundaries. Cursor pagination and indexed normalized columns remain future work.
+List endpoints for missions, events, incidents and robot telemetry support bounded limit/offset pagination with deterministic ordering. Event and incident lists filter by robot or mission; mission lists filter by robot and state. Immutable filter and ordering fields use normalized indexes. Offset pagination is a local-demo convenience; concurrently arriving data can shift page boundaries, so cursor pagination remains future work.
 
 ## Customer dashboard
 
