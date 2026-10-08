@@ -14,7 +14,7 @@ All 120 controlled cases pass the current contract, so tool selection and requir
 
 ## Initial local verification
 
-Python 3.13: 203 tests pass locally, including 120 investigation evaluation cases, four migration checks, versioned document retrieval and approval, authentication/authorization, maintenance-ticket, escaped report and replacement-mission coverage, bridge authentication, durable outbox and Nav2 mission-reconciliation behavior, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL verification runs in GitHub Actions.
+Python 3.13: 207 tests pass locally, including 120 investigation evaluation cases, five migration checks, observability and credential-redaction checks, versioned document retrieval and approval, authentication/authorization, maintenance-ticket, escaped report and replacement-mission coverage, bridge authentication, durable outbox and Nav2 mission-reconciliation behavior, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL verification runs in GitHub Actions.
 
 ## Reliability review
 
@@ -32,7 +32,11 @@ Seven additional API/worker tests cover ordered completion, restarting from comm
 
 ## Migration validation
 
-Four tests verify fresh schema creation, metadata drift detection, downgrade/reapply behavior, rejection of an unmigrated database, and adoption of a legacy schema without losing records. The dashboard integration server also migrates its temporary SQLite database before startup. GitHub Actions runs a standalone migration smoke test and exercises the application suite against PostgreSQL 17.
+Five tests verify fresh schema creation, metadata drift detection, downgrade/reapply behavior, rejection of an unmigrated database, adoption of a legacy schema without losing records, and indexed operational-record backfill. The dashboard integration server also migrates its temporary SQLite database before startup. GitHub Actions runs a standalone migration smoke test and exercises the application suite against PostgreSQL 17.
+
+## Observability validation
+
+Tests verify separate liveness and database-readiness responses, accepted and replaced correlation IDs, structured completion fields, 32-character trace IDs, credential omission, Prometheus content, operational state gauges, and route-template labels that do not include concrete resource IDs. The complete ten-workflow browser suite also passes against the instrumented API.
 
 ## Authentication validation
 

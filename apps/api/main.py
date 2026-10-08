@@ -7,6 +7,7 @@ import os
 import logging
 import math
 import secrets
+from collections import Counter
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone, timedelta
 from typing import Literal
@@ -22,6 +23,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from apps.ai_agent.service import GUIDES, Guide, investigate as investigate_records
 from apps.api.migrations import require_current_schema
+from apps.api.observability import Metrics, install_observability, tracer_provider
 from apps.api.reports import incident_report, mission_report
 
 
@@ -227,6 +229,8 @@ def create_app(
     bootstrap_admin_password=None,
     bootstrap_admin_username=None,
     telemetry_api_key=None,
+    otlp_endpoint=None,
+    request_log=None,
 ):
     engine = create_engine(database_url or os.getenv("DATABASE_URL", "sqlite:///./atlas.db"))
     if engine.dialect.name == "sqlite":
@@ -242,6 +246,8 @@ def create_app(
             connection.exec_driver_sql("BEGIN IMMEDIATE")
 
     sessions = sessionmaker(engine, expire_on_commit=False)
+    metrics_registry = Metrics()
+    tracing = tracer_provider(otlp_endpoint)
     bridge_key = telemetry_api_key or os.getenv("ATLAS_TELEMETRY_API_KEY")
     if bridge_key and len(bridge_key) < 24:
         raise ValueError("ATLAS_TELEMETRY_API_KEY must contain at least 24 characters")
@@ -355,9 +361,12 @@ def create_app(
                 with suppress(asyncio.CancelledError):
                     await task
             engine.dispose()
+            tracing.shutdown()
 
     app = FastAPI(title="ATLAS — Synthetic Fleet API", lifespan=lifespan)
+    install_observability(app, tracing, metrics_registry, request_log)
     app.state.check_disconnects = check_disconnects
+    app.state.metrics = metrics_registry
 
     def audit(db, actor_id, action, resource_type, resource_id, details=None):
         db.add(
@@ -859,9 +868,26 @@ def create_app(
 
     @app.get("/health")
     def health():
+        return {"status": "ok"}
+
+    @app.get("/ready")
+    def ready():
         with sessions() as db:
             db.execute(select(1))
-        return {"status": "ok"}
+        return {"status": "ready"}
+
+    @app.get("/metrics", include_in_schema=False)
+    def metrics():
+        with sessions() as db:
+            robots_by_status = Counter(row.data["status"] for row in db.scalars(select(Robot)))
+            missions_by_status = Counter(row.data["status"] for row in db.scalars(select(Mission)))
+            incidents_by_status = Counter(row.data["status"] for row in db.scalars(select(Incident)))
+        return Response(
+            metrics_registry.render(
+                robots_by_status, missions_by_status, incidents_by_status
+            ),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
 
     @app.get("/api/robots")
     def robots():
