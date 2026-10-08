@@ -14,7 +14,7 @@ idna==3.20
 googleapis-common-protos==1.75.5
 iniconfig==2.3.0
 Mako==1.4.3
-MarkupSafe==3.0.3
+MarkupSafe==3.0.4
 packaging==26.3
 opentelemetry-api==1.45.1
 opentelemetry-exporter-http-transport==0.66b1
