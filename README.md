@@ -1,14 +1,225 @@
-# ATLAS — Autonomous Task & Logistics Agent System
+# ATLAS — Understand why a robot mission failed
 
-Independent robotics and AI portfolio project. Uses five simulated robots and entirely synthetic industrial data. No employer systems, proprietary models, real customer information, or physical robot commands are involved.
+ATLAS is an independent, open-source robotics operations platform for a
+fictional industrial inspection fleet. It turns robot telemetry, mission state,
+operational events, approved technical guidance, and maintenance history into
+an evidence-backed incident workflow.
 
-## Current implementation
+The project uses only simulated robots and synthetic industrial data. It does
+not contain employer code, customer information, proprietary models, or real
+robot telemetry.
 
-ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, request correlation, operational metrics, OpenTelemetry tracing, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, a versioned technical-document library, user administration, audit history, human-approved maintenance tickets, replacement mission proposals, and downloadable customer reports. The robotics integration includes machine authentication, mission polling, stable ROS event IDs, durable offline telemetry buffering, and a ROS 2 node that translates approved missions into Nav2 waypoint actions. Gazebo environment validation and an optional hosted-model adapter remain future milestones.
+## The problem
 
-## Run locally on macOS
+When a robot fails in the field, an engineer may need to correlate mission
+history, ROS events, telemetry, logs, technical documentation, and earlier
+maintenance work before deciding what to do next. Those records often live in
+different systems, and the most recent error is not necessarily the root cause.
 
-Requires Python 3.11 or newer (tested with 3.13). From the repository directory:
+ATLAS explores one focused question:
+
+> Can an operations platform reconstruct a robot failure from authorized
+> evidence, explain what the evidence supports, and preserve human approval for
+> every operational write?
+
+The initial user is a small team operating a fleet of ROS 2 mobile robots. The
+first version models one customer, one facility, and five robots.
+
+## A concrete failure
+
+In the reproducible demo, Robot 3 begins an inspection mission and reports a
+failed sensor state on its fourth update. ATLAS then:
+
+```text
+sensor_status=failed
+        ↓
+stores the telemetry event exactly once
+        ↓
+fails the active mission in the same database transaction
+        ↓
+creates one sensor_failure incident
+        ↓
+loads the triggering event, mission, and approved sensor guide
+        ↓
+produces a bounded finding with event and document citations
+        ↓
+waits for a human to approve maintenance or a replacement mission
+```
+
+The investigation can support **a fault somewhere in the sensor path**. It does
+not claim that the evidence distinguishes hardware failure, obstruction,
+calibration drift, or a transient communication problem. That uncertainty is
+part of the result.
+
+## ATLAS in 60 seconds
+
+1. An operator creates and separately approves an inspection mission.
+2. A simulator or ROS 2 bridge sends authenticated telemetry with stable event
+   identifiers.
+3. The API validates freshness and mission ownership, stores the event, updates
+   robot state, and applies deterministic fault rules transactionally.
+4. A fault creates an incident linked to the affected mission and triggering
+   evidence.
+5. The investigation engine retrieves only those authorized records and the
+   latest approved technical-document revisions for the fault.
+6. ATLAS returns a finding, confidence, limitations, recommended action, exact
+   citations, and a read-only tool trace.
+7. A human may approve a maintenance ticket or replacement mission. Every
+   action is attributed in the audit log and can appear in a customer report.
+
+```mermaid
+flowchart LR
+    Robot[Simulator or ROS 2 robot] -->|authenticated telemetry| API[FastAPI]
+    API --> DB[(PostgreSQL)]
+    API --> Incident[Incident]
+    Incident --> Evidence[Mission + cited events]
+    Evidence --> Investigator[Deterministic investigator]
+    Docs[Approved versioned documents] --> Investigator
+    Investigator --> Finding[Finding + uncertainty + citations]
+    Finding --> Approval{Human approval}
+    Approval --> Ticket[Maintenance ticket]
+    Approval --> Retry[Replacement mission]
+```
+
+## Implemented capabilities
+
+- Five-robot synthetic fleet with scheduled missions, waypoint progress, fault
+  injection, heartbeat monitoring, and reproducible outcomes.
+- FastAPI and PostgreSQL backend with Alembic migrations, normalized query
+  indexes, explicit mission transitions, transaction boundaries, and duplicate
+  protection.
+- React and TypeScript operations dashboard for fleet status, missions,
+  incidents, evidence, technical documents, approvals, users, and audit history.
+- Deterministic evidence-grounded investigation with immutable document
+  revisions, SHA-256 provenance, explicit limitations, and read-only tools.
+- Human-approved maintenance tickets, replacement missions, and escaped
+  printable incident and mission reports.
+- ROS-independent bridge core with machine authentication, stable event IDs,
+  mission polling, and a durable SQLite outbox for interrupted connectivity.
+- ROS 2/Nav2 adapter that maps approved missions to `NavigateThroughPoses` and
+  translates odometry, battery, diagnostics, and action results into ATLAS.
+- Structured logs, correlation IDs, Prometheus metrics, readiness checks, and
+  optional OpenTelemetry OTLP trace export.
+- Local authentication, role-based authorization, CSRF protection, login
+  throttling, audit logs, browser security headers, and secure-cookie support.
+
+## Engineering decisions worth inspecting
+
+### 1. State changes and evidence commit together
+
+Telemetry insertion, robot snapshot updates, incident creation, and mission
+failure occur in one transaction. PostgreSQL row locks serialize competing
+updates; SQLite uses `BEGIN IMMEDIATE` for the local single-worker demo. A fault
+cannot be visible without its triggering evidence also being committed.
+
+### 2. Delivery is idempotent and replayable
+
+Each telemetry event has a caller-generated identifier. Identical delivery is a
+successful duplicate; reuse of the identifier with different content is a
+conflict. The ROS bridge writes observations to a durable outbox before network
+delivery, then safely retries them after an outage.
+
+### 3. Investigation is separated from authority
+
+The API selects the incident, mission, cited events, and approved document
+revisions. The investigator receives those records without a database session
+or write tools. It cannot command a robot, create a ticket, approve a mission,
+or override a safety rule. Operational writes remain explicit server workflows
+with role checks, CSRF protection, human approval, and audit attribution.
+
+### 4. Uncertainty and provenance are product behavior
+
+Findings cite exact event IDs and document versions with content hashes. Missing
+referenced evidence produces an insufficient result. The engine distinguishes
+what the records establish from plausible causes that they cannot establish.
+The current deterministic implementation creates a measurable baseline for a
+future optional model adapter.
+
+## Reliability evidence
+
+The test suite contains examples intended to demonstrate operational guarantees,
+not just endpoint coverage:
+
+- concurrent approvals allow exactly one mission transition;
+- concurrent delivery of one event stores it once;
+- stale telemetry remains queryable but cannot regress live robot state;
+- cancellation racing telemetry cannot resurrect a mission;
+- simultaneous sensor and battery faults commit both incidents;
+- an interrupted bridge retains events and replays them without duplication;
+- missing cited evidence forces an insufficient investigation.
+
+The current verification includes **209 backend tests**, **120 reproducible
+investigation cases**, and **10 browser workflows**. GitHub Actions runs backend
+behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real
+API. Detailed scope and limitations are recorded in
+[docs/evaluation.md](docs/evaluation.md).
+
+## What ATLAS does not do yet
+
+- It is not a physical robot safety controller and never sends raw motor
+  commands.
+- The investigation engine is deterministic; it is not presented as an
+  autonomous LLM agent.
+- The ROS 2/Nav2 adapter has unit and contract coverage, but its Gazebo runtime
+  acceptance sequence still requires Ubuntu 24.04, ROS 2 Jazzy, and Gazebo
+  Harmonic.
+- The heartbeat monitor and login limiter are process-local. This release runs
+  one API worker and is not a horizontally scaled deployment.
+- Scale testing is limited to the synthetic portfolio environment.
+- Docker Compose has not been exercised on the current development machine;
+  CI validates the PostgreSQL backend and dashboard workflows separately.
+- The local account system is not enterprise identity management.
+- The coordinate view is synthetic and is not a surveyed facility map.
+
+## Quick start: run the failure demo
+
+The shortest complete path uses Docker Compose. It builds the dashboard, starts
+PostgreSQL, applies migrations, creates five synthetic robots, and serves the UI
+at [http://127.0.0.1:8000](http://127.0.0.1:8000).
+
+```sh
+git clone https://github.com/ParsaDj/ATLAS.git
+cd ATLAS
+docker compose up --build -d db api
+docker compose --profile demo run --rm simulator
+```
+
+The simulator runs for approximately 50 seconds. Sign in with the local demo
+account:
+
+```text
+Username: atlas-admin
+Password: atlas-local-demo-password
+```
+
+Expected fresh-database outcomes:
+
+| Robot | Result |
+| --- | --- |
+| Robot 1 | Mission completed |
+| Robot 2 | Low-battery incident; mission failed |
+| Robot 3 | Sensor-failure incident; mission failed |
+| Robot 4 | Disconnection incident; mission failed |
+| Robot 5 | Mission completed |
+
+Open **Incidents**, select Robot 3's sensor incident, and choose **Investigate
+incident**. The result should cite the triggering event and the approved
+`DOC-SENSOR-001` revision while preserving uncertainty about the underlying
+sensor cause.
+
+The Compose credentials are intentionally local demonstration values. Replace
+them before any shared deployment. Stop the stack with:
+
+```sh
+docker compose down
+```
+
+The `atlas-data` volume preserves PostgreSQL data. Use `docker compose down -v`
+only when you intentionally want a fresh demo database.
+
+## Local development without Docker
+
+Requires Python 3.11+; the current suite is tested with Python 3.13.
 
 ```sh
 python3 -m venv .venv
@@ -20,9 +231,8 @@ export ATLAS_TELEMETRY_API_KEY='choose-a-long-random-bridge-key'
 uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-SQLite is the default and `alembic upgrade head` creates or upgrades `atlas.db`. On the first authenticated startup, `ATLAS_BOOTSTRAP_ADMIN_PASSWORD` creates the local `atlas-admin` account; later startups keep the stored account and do not reuse the environment value. The API seeds the five synthetic robots after the schema is current; it never creates or alters tables. No Docker, paid model, or robotics installation is needed. Use one API worker for this demo.
-
-Open http://127.0.0.1:8000/docs for the interactive API. In a second terminal:
+Run the fault simulator in another terminal using the same telemetry key and
+the administrator password created on first startup:
 
 ```sh
 source .venv/bin/activate
@@ -31,140 +241,72 @@ export ATLAS_TELEMETRY_API_KEY='choose-a-long-random-bridge-key'
 python -m simulator.fleet
 ```
 
-The simulator creates and approves one mission per robot, writes events to `events.jsonl`, and sends telemetry every five seconds for ten ticks (about 50 seconds). The file is append-only; each run has unique event identifiers.
-
-Expected results on a fresh database:
-
-| Robot | Outcome |
-| --- | --- |
-| Robot 1 | Mission completed |
-| Robot 2 | Low battery incident; mission failed |
-| Robot 3 | Sensor failure incident; mission failed |
-| Robot 4 | Stops reporting; disconnection incident; mission failed |
-| Robot 5 | Mission completed |
-
-```sh
-curl http://127.0.0.1:8000/api/robots
-curl http://127.0.0.1:8000/api/incidents
-curl http://127.0.0.1:8000/api/robots/robot-3/telemetry
-```
-
-Use a returned mission ID with `GET /api/missions/{mission_id}` to inspect the failed mission. Incidents cite the first triggering event ID; disconnection has no triggering event and records the detection time instead. Historical events remain accessible through robot telemetry.
-
-Run `POST /api/incidents/{incident_id}/investigate` or select **Investigate incident** in the dashboard to produce an evidence-grounded explanation. The first implementation is deterministic and works without an API key or paid model. It reads only the incident's mission, referenced events, and approved technical-document revisions. Every document citation carries a stable ID, version, and SHA-256 content hash. Bundled Markdown revisions seed fresh databases and remain the fallback for standalone evaluations. Administrators add immutable draft revisions through `POST /api/documents` and approve them with a separate endpoint; authenticated users can inspect approved revisions through the read-only document endpoints. The investigator cannot create tickets, reschedule missions, or command robots.
-
-Operators and administrators can draft a maintenance ticket from an open incident and assign it to an active technician account. Approval is a separate action. Only the assigned technician or an administrator can start and resolve the approved work. Resolving the ticket atomically resolves the incident and records the resolution. Ticket creation, approval, start, and resolution are attributed in the audit log.
-
-Authenticated users can download printable HTML reports from incident and mission details. Incident reports separate recorded facts from evidence-based findings, confidence, limitations, citations, and maintenance history. Mission reports include route, telemetry summary, incidents, and linked tickets. Customer-entered content is HTML-escaped, every generation is audited, and each report states that it contains synthetic records rather than physical-safety evidence.
-
-Operators and administrators can copy and edit the route from a failed mission to propose a replacement from its incident. The proposal remains pending until a separate approval action. The server links the source incident and mission, blocks technicians from proposing or approving, prevents duplicate active replacements, and keeps both actions in the audit log.
-
-A rerun creates new missions and retains previous records. After the simulator exits, the heartbeat monitor will eventually mark the remaining robots disconnected too. Inspect the printed incident list at the end of the demo for the three intended faults. An interrupted run can leave running missions. The simulator checks for these before creating any new missions. Find them with `GET /api/missions?status=running`, then cancel each using `POST /api/missions/{id}/cancel` with `{"reason":"Restart interrupted demo"}`. Cancellation is a terminal state and retains all evidence. You can then rerun the simulator. To start a separate dataset without removing data, first run `DATABASE_URL=sqlite:///./another-demo.db alembic upgrade head`, then start the API with the same `DATABASE_URL`.
-
-List missions with `GET /api/missions?robot_id=robot-3&status=failed`, retrieve their telemetry with `GET /api/events?mission_id=YOUR_MISSION_ID`, and follow incident evidence with `GET /api/events/{event_id}`. Mission, event, incident, and robot telemetry lists accept `limit` (1–1000, default 100) and `offset` (default 0). Event and incident lists accept `robot_id` and `mission_id` filters.
-
-## Operations dashboard
-
-The dashboard uses the actual API and refreshes every five seconds. Sign-in uses an HttpOnly server-side session and a per-session CSRF token. Administrators manage local operator, technician, and administrator accounts and can review the audit history. Operators and administrators create, approve, and cancel missions; all authenticated roles can investigate incidents. Northstar Industries is a fictional customer. The position view is a synthetic coordinate plot, not a surveyed facility map.
-
-Login failures are limited to five attempts per client within five minutes. API
-responses include content-type, framing, referrer, permissions, opener, and
-content-security protections; HTTPS responses also include HSTS. The in-process
-login limit supports the documented single-worker prototype. An internet-facing
-deployment still requires gateway-level rate limiting across instances.
-
-Requires Node.js 22.12+ and pnpm 11.25.0. Install pnpm using `npm install --global pnpm@11.25.0`, then from the repository root:
+To serve the dashboard, install Node.js 22.12+ and pnpm 11.25.0, then build it
+before starting the API:
 
 ```sh
 cd apps/dashboard
 pnpm install --frozen-lockfile
 pnpm build
 cd ../..
-.venv/bin/alembic upgrade head
-.venv/bin/uvicorn apps.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000 to use the dashboard. The build must exist **before starting the API**, which serves the compiled dashboard from the same origin. API-only use remains supported when no build exists.
+Open `/docs` for the interactive API. `/health` reports process liveness,
+`/ready` verifies database access, and `/metrics` exposes Prometheus text
+metrics. `.env.example` documents configuration; the application does not load
+that file automatically.
 
-For frontend development, run the API on port 8000 and `pnpm dev` from `apps/dashboard` in a second terminal. Vite serves the dashboard on port 5173 and proxies `/api` requests to the backend. No CORS wildcard or frontend API key is required.
-
-The dashboard displays up to ten missions or incidents per page and twenty recent events per detail view. Triggering evidence is retrieved separately by event ID, so older fault evidence remains accessible. Unavailable evidence is shown as unavailable. API failures preserve the last successful snapshot and show a stale-data warning. To execute dashboard-created missions, start the operations worker in another terminal:
+For dashboard-created healthy missions, run the resumable operations worker:
 
 ```sh
-ATLAS_TELEMETRY_API_KEY='choose-a-long-random-bridge-key' .venv/bin/python -m simulator.worker
+ATLAS_TELEMETRY_API_KEY='choose-a-long-random-bridge-key' \
+  .venv/bin/python -m simulator.worker
 ```
 
-It waits for approvals, follows each waypoint in order (one simulation unit per tick, default two-second interval), persists progress, and sends idle heartbeats after completion or cancellation. The dashboard shows reached waypoints. This healthy operations mode reports a fixed synthetic 100% battery and no sensor fault; use the separate `simulator.fleet` scenario to demonstrate faults. **Do not run both producers against the same facility at once.**
+Do not run the healthy worker and fault simulator against the same facility at
+the same time.
 
-The worker re-reads authoritative state each tick. Cancellation blocks in-flight execution updates at the server. A short restart resumes the last committed position and waypoint; repeated delivery and competing workers cannot advance the same execution step twice. If the worker stays offline beyond the 15-second heartbeat window and the watchdog fails the mission, restarting restores connectivity but does not resurrect the failed mission. Create and approve a new mission to retry. A long API outage can likewise require a new mission.
-
-With Compose, run `docker compose --profile operations up --build` to start the database, API/dashboard, and worker together. The existing `demo` profile remains a separate fault demonstration.
-
-## PostgreSQL with Docker Compose
-
-Requires Docker with Compose. The credentials below are local demo credentials.
-
-```sh
-docker compose up --build -d db api
-curl http://127.0.0.1:8000/health
-# Once health returns {"status":"ok"}:
-docker compose --profile demo run --rm simulator
-```
-
-The multi-stage Dockerfile builds the dashboard and serves it through the API on port 8000. The API binds to loopback. PostgreSQL persists in the `atlas-data` volume; `docker compose down` retains it. Simulator output inside its disposable container is ephemeral; use the local simulator against the Compose API to retain `events.jsonl` locally.
-
-`GET /health` is a process liveness probe. `GET /ready` verifies database access, and Compose uses it before starting dependent services. `GET /metrics` returns Prometheus text metrics for request counts and durations plus robot, mission, and incident state. Responses include `X-Request-ID`; a caller may supply a value containing letters, digits, `.`, `_`, `:`, or `-`, up to 128 characters. Request logs are structured JSON and contain the route template, status, duration, correlation ID, and trace ID without headers, credentials, query strings, or request bodies.
-
-Every request creates an OpenTelemetry server span. Spans remain local unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set to an OTLP/HTTP collector base URL such as `http://localhost:4318`; when configured, ATLAS exports them to `/v1/traces`. This is optional and the application remains fully usable without a collector.
-
-`DATABASE_URL` selects the database. `.env.example` documents its format; the Python service does not automatically load `.env`. The container runs `alembic upgrade head` before starting Uvicorn. Existing pre-Alembic ATLAS databases are adopted by the initial migration after their table shape is validated, preserving their records.
-
-For local schema changes, update the SQLAlchemy models, generate a candidate revision with `alembic revision --autogenerate -m "description"`, review it, and run `alembic upgrade head`. Use `alembic current` to inspect the applied revision. Starting the API against an unmigrated database fails instead of silently changing its schema.
-
-## Tests
+## Run the tests
 
 ```sh
 .venv/bin/python -m pytest -q
-```
 
-Tests use isolated SQLite databases and a controllable clock, including a full five-robot scenario, concurrent duplicate delivery, concurrent mission approval, missing first heartbeat, recovery, validation, out-of-order events, invalid mission transitions, incident investigation, and maintenance authorization. A separate reproducible evaluation covers 120 synthetic incidents across low battery, sensor failure, and disconnection cases. GitHub Actions is configured to run the workflow suite against both SQLite and a PostgreSQL 17 service. For your own PostgreSQL test database, set `ATLAS_TEST_POSTGRES_URL` before invoking pytest; each test uses an isolated temporary schema and removes only that schema afterward. The test user needs schema creation permission.
-
-Current verification totals are recorded in `docs/evaluation.md`. The backend GitHub Actions job runs against both SQLite and PostgreSQL 17, and the dashboard job builds the UI and runs browser workflows. Docker Compose itself remains unverified locally because Docker is unavailable.
-
-## Robotics bridge preparation
-
-`robotics/atlas_bridge` is the ROS-independent portion of the integration. It polls the approved mission for one robot, authenticates telemetry with `X-ATLAS-Bridge-Key`, assigns replay-safe IDs from the ROS timestamp and sequence, and writes every observation to a SQLite outbox before delivery. Temporary network, authentication, throttling, and server failures retain events for a later flush. Permanent validation failures move to a rejected-event table so a poisoned record cannot block newer observations.
-
-This core and its mission state machine run and are tested on macOS. `robotics/atlas_ros` provides the `rclpy` wrapper that subscribes to odometry, battery, and diagnostics topics and sends approved waypoints to Nav2. Its Python syntax and package contract are checked locally; runtime validation still requires Ubuntu with ROS 2, Gazebo, and Nav2. See `docs/ros2-integration.md` for setup and acceptance steps.
-
-Dashboard workflow tests use Chromium and a fresh temporary SQLite database on port 8011; they never touch `atlas.db`:
-
-```sh
 cd apps/dashboard
 pnpm exec playwright install chromium
 ATLAS_TEST_PYTHON=../../.venv/bin/python pnpm test:e2e
 ```
 
-Build the dashboard first. The ten tests cover authentication, incident evidence, mission creation/approval/cancellation, document drafting and approval, audit administration, the complete maintenance workflow, downloaded customer reports, edited replacement proposals and approval, API outage/recovery, mobile navigation, and a dashboard-approved mission completing through a real worker process. CI also runs these workflows against a real API (SQLite).
+For PostgreSQL coverage, set `ATLAS_TEST_POSTGRES_URL` to a test database whose
+user may create schemas. Each test uses and removes a unique temporary schema.
 
-## Project map
+## ROS 2 integration status
 
-- `apps/api/main.py`: API, persistence, mission transitions, heartbeat monitor.
-- `apps/api/reports.py`: escaped printable incident and mission report rendering.
-- `migrations/`: versioned SQLite/PostgreSQL schema changes managed by Alembic.
-- `apps/ai_agent/`: read-only evidence engine and bundled technical-document revisions.
-- `apps/dashboard/`: React/TypeScript customer dashboard and browser tests.
-- `simulator/fleet.py`: reproducible synthetic fleet and JSONL event output.
-- `robotics/atlas_bridge/`: reliable transport core for the ROS 2 adapter.
-- `robotics/atlas_ros/`: ROS 2 package, Nav2 action client, launch file, and configuration.
-- `tests/test_api.py`: workflow and reliability tests.
-- `tests/evaluations/`: reproducible synthetic incident evaluation dataset.
-- `docs/architecture.md`: contracts, state handling, and design tradeoffs.
-- `docs/requirements.md`: scope and next milestones.
-- `docs/safety.md`: boundaries and approval model.
-- `docs/evaluation.md`: tested behavior and limitations.
+`robotics/atlas_bridge` is the tested ROS-independent transport and mission
+coordination layer. `robotics/atlas_ros` is the `rclpy`/Nav2 wrapper for one
+robot. The remaining runtime validation covers a successful waypoint mission,
+active cancellation, navigation failure, bridge restart, and offline outbox
+replay in Gazebo. See [docs/ros2-integration.md](docs/ros2-integration.md) for
+the environment and acceptance sequence.
 
-This is a local development prototype, not a physical robot safety system. It is
-available under the [Apache License 2.0](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md)
-for contribution requirements and [SECURITY.md](SECURITY.md) for private
-vulnerability reporting and deployment expectations.
+## Repository map
+
+- `apps/api/` — FastAPI workflows, persistence, reports, security, and
+  observability.
+- `apps/ai_agent/` — deterministic evidence engine and bundled approved guides.
+- `apps/dashboard/` — React/TypeScript customer operations interface.
+- `simulator/` — reproducible five-robot fault demo and healthy mission worker.
+- `robotics/atlas_bridge/` — reliable ROS-independent transport core.
+- `robotics/atlas_ros/` — ROS 2 subscriptions and Nav2 action adapter.
+- `migrations/` — reviewed Alembic schema history for SQLite and PostgreSQL.
+- `tests/` — unit, integration, concurrency, workflow, and evaluation coverage.
+- `docs/` — architecture, requirements, safety boundaries, evaluation, and ROS
+  acceptance documentation.
+
+## License and safety boundary
+
+ATLAS is available under the [Apache License 2.0](LICENSE). See
+[CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md) before
+contributing or deploying it.
+
+This is a synthetic portfolio system. Its measurements do not establish the
+safety or reliability of a physical robot or industrial facility.
