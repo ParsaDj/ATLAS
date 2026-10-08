@@ -13,6 +13,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Literal
 from uuid import uuid4
 from pathlib import Path
+from time import monotonic
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +26,7 @@ from apps.ai_agent.service import GUIDES, Guide, investigate as investigate_reco
 from apps.api.migrations import require_current_schema
 from apps.api.observability import Metrics, install_observability, tracer_provider
 from apps.api.reports import incident_report, mission_report
+from apps.api.security import LoginRateLimiter
 
 
 def now():
@@ -231,6 +233,7 @@ def create_app(
     telemetry_api_key=None,
     otlp_endpoint=None,
     request_log=None,
+    security_clock=None,
 ):
     engine = create_engine(database_url or os.getenv("DATABASE_URL", "sqlite:///./atlas.db"))
     if engine.dialect.name == "sqlite":
@@ -248,6 +251,8 @@ def create_app(
     sessions = sessionmaker(engine, expire_on_commit=False)
     metrics_registry = Metrics()
     tracing = tracer_provider(otlp_endpoint)
+    login_limiter = LoginRateLimiter(time_source=security_clock or monotonic)
+    dummy_password = password_hash(secrets.token_urlsafe(24))
     bridge_key = telemetry_api_key or os.getenv("ATLAS_TELEMETRY_API_KEY")
     if bridge_key and len(bridge_key) < 24:
         raise ValueError("ATLAS_TELEMETRY_API_KEY must contain at least 24 characters")
@@ -455,11 +460,23 @@ def create_app(
     ticket_work = authorize("technician", "administrator", csrf=True)
 
     @app.post("/api/auth/login")
-    def login(body: LoginRequest, response: Response):
+    def login(body: LoginRequest, response: Response, request: Request):
+        client_id = request.client.host if request.client else "unknown"
+        retry_after = login_limiter.retry_after(client_id)
+        if retry_after:
+            raise HTTPException(
+                429,
+                "Too many login attempts; try again later",
+                headers={"Retry-After": str(retry_after)},
+            )
         with sessions.begin() as db:
             user = db.scalar(select(User).where(User.username == body.username))
-            if not user or not user.active or not password_matches(body.password, user.password_hash):
+            candidate_hash = user.password_hash if user and user.active else dummy_password
+            password_valid = password_matches(body.password, candidate_hash)
+            if not user or not user.active or not password_valid:
+                login_limiter.failed(client_id)
                 raise HTTPException(401, "Invalid username or password")
+            login_limiter.succeeded(client_id)
             token = secrets.token_urlsafe(32)
             csrf_token = secrets.token_urlsafe(32)
             expires = clock() + timedelta(hours=8)

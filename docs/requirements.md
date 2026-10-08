@@ -24,7 +24,7 @@ ATLAS supports a fictional single facility, one customer, and five synthetic ins
 4. Expand recovery testing and operational measurements.
 5. Prepare a reproducible portfolio release and recorded demo.
 
-Budget: 5–7 hours/week, no hardware required. Milestones 1–3 form the MVP. Use only synthetic or appropriately licensed public material. Choose a license and publish the repository when ready; neither publication nor an open-source license is implied by this initial local scaffold.
+Budget: 5–7 hours/week, no hardware required. Milestones 1–3 form the MVP. Use only synthetic or appropriately licensed public material. The public repository is distributed under Apache-2.0; third-party robot models, maps, libraries, and documentation retain their own licenses and attribution requirements.
 
 ## Dashboard milestone delivered ahead of the target schedule
 
