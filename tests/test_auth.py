@@ -1,5 +1,11 @@
 from datetime import timedelta
 
+from fastapi.testclient import TestClient
+
+from apps.api.main import create_app
+from apps.api.migrations import upgrade_database
+from conftest import TEST_ADMIN_PASSWORD, TEST_BRIDGE_KEY
+
 
 def login(client, username, password):
     client.cookies.clear()
@@ -123,3 +129,56 @@ def test_session_expires_after_eight_hours(system):
     response = client.get("/api/auth/me")
     assert response.status_code == 401
     assert response.json()["detail"] == "Session expired or invalid"
+
+
+def test_login_rate_limit_recovers_after_window(database_url):
+    upgrade_database(database_url)
+    limiter_time = [1000.0]
+    app = create_app(
+        database_url,
+        monitor=False,
+        bootstrap_admin_password=TEST_ADMIN_PASSWORD,
+        telemetry_api_key=TEST_BRIDGE_KEY,
+        security_clock=lambda: limiter_time[0],
+    )
+    with TestClient(app) as client:
+        for _ in range(5):
+            response = client.post(
+                "/api/auth/login",
+                json={"username": "atlas-admin", "password": "incorrect-password"},
+            )
+            assert response.status_code == 401
+
+        blocked = client.post(
+            "/api/auth/login",
+            json={"username": "atlas-admin", "password": TEST_ADMIN_PASSWORD},
+        )
+        assert blocked.status_code == 429
+        assert blocked.headers["Retry-After"] == "300"
+
+        limiter_time[0] += 301
+        recovered = client.post(
+            "/api/auth/login",
+            json={"username": "atlas-admin", "password": TEST_ADMIN_PASSWORD},
+        )
+        assert recovered.status_code == 200
+
+
+def test_security_headers_cover_api_errors_and_https(database_url):
+    upgrade_database(database_url)
+    app = create_app(
+        database_url,
+        monitor=False,
+        bootstrap_admin_password=TEST_ADMIN_PASSWORD,
+        telemetry_api_key=TEST_BRIDGE_KEY,
+    )
+    with TestClient(app, base_url="https://atlas.example") as client:
+        response = client.get("/api/robots/missing")
+
+    assert response.status_code == 404
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Referrer-Policy"] == "no-referrer"
+    assert response.headers["Cross-Origin-Opener-Policy"] == "same-origin"
+    assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
+    assert response.headers["Strict-Transport-Security"].startswith("max-age=31536000")
