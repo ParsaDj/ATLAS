@@ -19,6 +19,11 @@ services:
       ATLAS_BOOTSTRAP_ADMIN_USERNAME: atlas-admin
       ATLAS_BOOTSTRAP_ADMIN_PASSWORD: atlas-local-demo-password
       ATLAS_TELEMETRY_API_KEY: atlas-local-demo-bridge-key-123456
+      ATLAS_INVESTIGATOR_MODE: ${ATLAS_INVESTIGATOR_MODE:-deterministic}
+      ATLAS_LLM_API_KEY: ${ATLAS_LLM_API_KEY:-}
+      ATLAS_LLM_MODEL: ${ATLAS_LLM_MODEL:-}
+      ATLAS_LLM_BASE_URL: ${ATLAS_LLM_BASE_URL:-https://api.openai.com/v1}
+      ATLAS_LLM_TIMEOUT_SECONDS: ${ATLAS_LLM_TIMEOUT_SECONDS:-30}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)"]
       interval: 5s
