@@ -89,6 +89,17 @@ export type AuditLog = {
   occurred_at: string;
   details: Record<string, unknown>;
 };
+export type TechnicalDocument = {
+  id: string;
+  version: string;
+  fault: string;
+  title: string;
+  content: string;
+  next_step: string;
+  sha256: string;
+  approved: boolean;
+  created_at: string;
+};
 export type LoginResult = { user: User; csrf_token: string };
 
 export function rememberCsrf(token: string | null) {

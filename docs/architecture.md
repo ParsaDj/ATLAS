@@ -81,6 +81,8 @@ The UI polls every five seconds with non-overlapping requests per resource and a
 
 Incident details retrieve referenced evidence separately from the paginated event timeline. Missing evidence is an error state, never replaced with an AI explanation. The coordinate plot uses last reported positions; it is not a navigation map.
 
+The Knowledge view exposes approved technical-document revisions to every authenticated role. Administrators also see drafts and can create and approve revisions through separate actions. Each card displays its fault classification, recommended action, exact version, and full content hash. Incident citations show the same version and a shortened hash so an operator can trace a finding back to its source revision.
+
 ## Resumable synthetic execution
 
 `python -m simulator.worker` polls the five registered robots and their linked missions. Only running (approved) missions move. Each execution event carries a deterministic mission/step event ID, the next execution step, and completed-waypoint count. The API holds the robot row lock, refreshes mission state, and validates the next step, motion toward the next waypoint, reached count, freshness, and final completion before committing telemetry and progress together. A step cannot skip waypoints or exceed one simulation unit. Legacy fault-demo telemetry remains supported separately.

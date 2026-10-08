@@ -4,7 +4,7 @@ Independent robotics and AI portfolio project. Uses five simulated robots and en
 
 ## Current implementation
 
-ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, user administration, audit history, human-approved maintenance tickets, replacement mission proposals, and downloadable customer reports. The robotics integration includes machine authentication, mission polling, stable ROS event IDs, durable offline telemetry buffering, and a ROS 2 node that translates approved missions into Nav2 waypoint actions. Gazebo environment validation and an optional hosted-model adapter remain future milestones.
+ATLAS now includes a FastAPI service, persistent SQLAlchemy storage, five seeded robots, mission execution, searchable event history, telemetry validation, incident detection, local role-based authentication, audit logging, and a deterministic fault demo. The React/TypeScript dashboard provides fleet monitoring, mission workflows, waypoint progress, incident evidence, investigation, a versioned technical-document library, user administration, audit history, human-approved maintenance tickets, replacement mission proposals, and downloadable customer reports. The robotics integration includes machine authentication, mission polling, stable ROS event IDs, durable offline telemetry buffering, and a ROS 2 node that translates approved missions into Nav2 waypoint actions. Gazebo environment validation and an optional hosted-model adapter remain future milestones.
 
 ## Run locally on macOS
 
@@ -135,7 +135,7 @@ pnpm exec playwright install chromium
 ATLAS_TEST_PYTHON=../../.venv/bin/python pnpm test:e2e
 ```
 
-Build the dashboard first. The nine tests cover authentication, incident evidence, mission creation/approval/cancellation, audit administration, the complete maintenance workflow, downloaded customer reports, edited replacement proposals and approval, API outage/recovery, mobile navigation, and a dashboard-approved mission completing through a real worker process. CI also runs these workflows against a real API (SQLite).
+Build the dashboard first. The ten tests cover authentication, incident evidence, mission creation/approval/cancellation, document drafting and approval, audit administration, the complete maintenance workflow, downloaded customer reports, edited replacement proposals and approval, API outage/recovery, mobile navigation, and a dashboard-approved mission completing through a real worker process. CI also runs these workflows against a real API (SQLite).
 
 ## Project map
 

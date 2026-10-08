@@ -28,7 +28,7 @@ Budget: 5–7 hours/week, no hardware required. Milestones 1–3 form the MVP. U
 
 ## Dashboard milestone delivered ahead of the target schedule
 
-React/TypeScript overview, five-robot fleet cards, last-reported position plot, mission history and proposal form, explicit approvals/cancellations, incident history, evidence details, event timelines, and incident investigation are implemented. Desktop and mobile workflows use the live API. Five Playwright tests verify key customer workflows.
+React/TypeScript overview, five-robot fleet cards, last-reported position plot, mission history and proposal form, explicit approvals/cancellations, incident history, evidence details, event timelines, incident investigation, and a versioned technical-document library are implemented. Administrators draft and separately approve guidance; every authenticated role can inspect approved revisions. Desktop and mobile workflows use the live API. Ten Playwright tests verify key customer workflows.
 
 ## Mission execution connected
 

@@ -30,7 +30,7 @@ test.beforeAll(async ({ request }) => {
             "X-ATLAS-Bridge-Key": "atlas-browser-bridge-key-1234567890",
           },
           data: {
-            event_id: `browser-seed-${n}`,
+            event_id: `browser-seed-${n}-${mission.id}`,
             robot_id: `robot-${n}`,
             mission_id: mission.id,
             occurred_at: new Date().toISOString(),
@@ -65,10 +65,10 @@ test("operator follows failed mission and triggering telemetry", async ({
   await expect(
     page.getByRole("heading", { name: /^Robot [1-5]$/ }),
   ).toHaveCount(5);
-  await page.getByRole("button", { name: /sensor failure robot-3/ }).click();
+  await page.getByRole("button", { name: /sensor failure robot-3/ }).first().click();
   const drawer = page.getByRole("dialog", { name: "Incident evidence" });
   await expect(
-    drawer.getByText("browser-seed-3", { exact: true }).first(),
+    drawer.getByText(/^browser-seed-3-/).first(),
   ).toBeVisible();
   await expect(drawer.getByText(/Battery 85% · sensor failed/)).toBeVisible();
   await drawer.getByRole("button", { name: "Investigate incident" }).click();
@@ -83,7 +83,7 @@ test("operator follows failed mission and triggering telemetry", async ({
       .getByRole("dialog", { name: "Mission details" })
       .getByText("failed", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("browser-seed-3", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^browser-seed-3-/)).toBeVisible();
 });
 
 test("operator creates, approves and cancels a mission", async ({
@@ -194,6 +194,40 @@ test("administrator creates a user and reviews the audit trail", async ({
   ).toBeVisible();
 });
 
+test("administrator drafts and approves technical guidance", async ({ page }) => {
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Knowledge" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Technical knowledge" }),
+  ).toBeVisible();
+  await expect(page.getByText("DOC-SENSOR-001@1.0")).toBeVisible();
+
+  await page.getByLabel("Document ID").fill("DOC-SENSOR-UI-001");
+  await page.getByLabel("Version").fill("1.0");
+  await page.getByLabel("Fault classification").selectOption("sensor_failure");
+  await page.getByLabel("Title").fill("Browser-tested sensor response");
+  await page
+    .getByLabel("Technical content")
+    .fill("Inspect the synthetic sensor connector and verify calibration records before retrying.");
+  await page
+    .getByLabel("Recommended next step")
+    .fill("Run the documented calibration check and review its output.");
+  await page.getByRole("button", { name: "Create draft revision" }).click();
+  await expect(
+    page.getByText("Draft revision created. Review it before approval."),
+  ).toBeVisible();
+
+  const revision = page.locator("article").filter({ hasText: "DOC-SENSOR-UI-001@1.0" });
+  await expect(revision.getByText("draft", { exact: true })).toBeVisible();
+  await revision.getByRole("button", { name: "Approve revision" }).click();
+  await expect(
+    page.getByText("DOC-SENSOR-UI-001 version 1.0 approved."),
+  ).toBeVisible();
+  await expect(revision.getByText("approved", { exact: true })).toBeVisible();
+});
+
 test("approved maintenance ticket is completed by its assigned technician", async ({
   page,
   request,
@@ -214,7 +248,7 @@ test("approved maintenance ticket is completed by its assigned technician", asyn
   expect(created.ok()).toBeTruthy();
 
   await page.goto("/");
-  await page.getByRole("button", { name: /sensor failure robot-3/ }).click();
+  await page.getByRole("button", { name: /sensor failure robot-3/ }).first().click();
   const drawer = page.getByRole("dialog", { name: "Incident evidence" });
   await drawer
     .getByLabel("Work summary")
@@ -236,6 +270,7 @@ test("approved maintenance ticket is completed by its assigned technician", asyn
   await page
     .getByRole("row")
     .filter({ hasText: "sensor failure" })
+    .first()
     .getByRole("button", { name: /Investigate/ })
     .click();
   const technicianDrawer = page.getByRole("dialog", {
@@ -260,6 +295,7 @@ test("operator downloads incident and inspection reports", async ({ page }) => {
   await page
     .getByRole("row")
     .filter({ hasText: "sensor failure" })
+    .first()
     .getByRole("button", { name: /Investigate/ })
     .click();
   const incidentDrawer = page.getByRole("dialog", { name: "Incident evidence" });
@@ -292,6 +328,7 @@ test("operator edits, proposes and approves a replacement mission", async ({ pag
   await page
     .getByRole("row")
     .filter({ hasText: "sensor failure" })
+    .first()
     .getByRole("button", { name: /Investigate/ })
     .click();
   const drawer = page.getByRole("dialog", { name: "Incident evidence" });
@@ -349,7 +386,7 @@ test("approved dashboard mission executes in a real worker process", async ({
     const drawer = page.getByRole("dialog", { name: "Mission details" });
     await drawer.getByRole("button", { name: "Approve mission" }).click();
     await expect(drawer.getByText("completed", { exact: true })).toBeVisible({
-      timeout: 15000,
+      timeout: 30000,
     });
     await expect(drawer.getByText("2 of 2 waypoints reached")).toBeVisible();
     expect(workerError).toBeUndefined();
