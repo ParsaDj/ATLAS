@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useRef, useState } from "react";
+import { StrictMode, useEffect, useRef, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 import {
   api,
@@ -11,6 +11,7 @@ import {
   type MaintenanceTicket,
   type User,
   type AuditLog,
+  type TechnicalDocument,
   type LoginResult,
   type Position,
   rememberCsrf,
@@ -246,6 +247,7 @@ function App({
             ["Fleet", "◈"],
             ["Missions", "⇢"],
             ["Incidents", "⚑"],
+            ["Knowledge", "◇"],
             ...(user.role === "administrator" ? [["Administration", "⌁"]] : []),
           ].map(([name, icon]) => (
             <button
@@ -301,6 +303,8 @@ function App({
                       ? "Inspection missions"
                       : view === "Incidents"
                         ? "Incident center"
+                        : view === "Knowledge"
+                          ? "Technical knowledge"
                         : "Security & audit"}
               </h1>
               <p>
@@ -312,10 +316,13 @@ function App({
                       ? "Plan inspections, approve execution, and review the record."
                       : view === "Incidents"
                         ? "Follow each failure back to its recorded evidence."
+                        : view === "Knowledge"
+                          ? "Review the approved guidance used in incident investigations."
                         : "Manage local users and review accountable operational actions."}
               </p>
             </div>
-            {["operator", "administrator"].includes(user.role) && (
+            {["operator", "administrator"].includes(user.role) &&
+              !["Knowledge", "Administration"].includes(view) && (
               <button className="primary" onClick={() => setCreateOpen(true)}>
                 ＋ Create mission
               </button>
@@ -623,6 +630,13 @@ function App({
               onChange={() => setRevision((value) => value + 1)}
             />
           )}
+          {view === "Knowledge" && (
+            <KnowledgeLibrary
+              role={user.role}
+              revision={revision}
+              onChange={() => setRevision((value) => value + 1)}
+            />
+          )}
           <footer>
             ATLAS · Intelligent robot operations{" "}
             <span>Independent project / synthetic data only</span>
@@ -651,6 +665,218 @@ function App({
           role={user.role}
         />
       )}
+    </div>
+  );
+}
+
+function KnowledgeLibrary({
+  role,
+  revision,
+  onChange,
+}: {
+  role: User["role"];
+  revision: number;
+  onChange: () => void;
+}) {
+  const approved = useResource<TechnicalDocument[]>(
+    "/api/documents?approved=true",
+    revision,
+  );
+  const drafts = useResource<TechnicalDocument[]>(
+    role === "administrator" ? "/api/documents?approved=false" : null,
+    revision,
+  );
+  const [form, setForm] = useState({
+    id: "",
+    version: "1.0",
+    fault: "sensor_failure",
+    title: "",
+    content: "",
+    next_step: "",
+  });
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const documents = [...(drafts.data ?? []), ...(approved.data ?? [])];
+
+  async function createRevision(event: FormEvent) {
+    event.preventDefault();
+    setBusy("create");
+    setError("");
+    setMessage("");
+    try {
+      await api<TechnicalDocument>("/api/documents", {
+        method: "POST",
+        body: JSON.stringify(form),
+      });
+      setForm({
+        id: "",
+        version: "1.0",
+        fault: "sensor_failure",
+        title: "",
+        content: "",
+        next_step: "",
+      });
+      setMessage("Draft revision created. Review it before approval.");
+      onChange();
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function approveRevision(document: TechnicalDocument) {
+    setBusy(`${document.id}:${document.version}`);
+    setError("");
+    setMessage("");
+    try {
+      await api(
+        `/api/documents/${encodeURIComponent(document.id)}/versions/${encodeURIComponent(document.version)}/approve`,
+        { method: "POST" },
+      );
+      setMessage(`${document.id} version ${document.version} approved.`);
+      onChange();
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <div className="knowledge-layout">
+      {role === "administrator" && (
+        <section className="panel">
+          <PanelHeader
+            title="New document revision"
+            subtitle="Draft first; approval is a separate audited action"
+          />
+          <form className="knowledge-form" onSubmit={createRevision}>
+            <div className="form-row">
+              <label>
+                Document ID
+                <input
+                  required
+                  pattern="[A-Z0-9-]+"
+                  placeholder="DOC-SENSOR-002"
+                  value={form.id}
+                  onChange={(event) =>
+                    setForm({ ...form, id: event.target.value.toUpperCase() })
+                  }
+                />
+              </label>
+              <label>
+                Version
+                <input
+                  required
+                  pattern="[0-9]+(\.[0-9]+){0,2}"
+                  value={form.version}
+                  onChange={(event) =>
+                    setForm({ ...form, version: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+            <label>
+              Fault classification
+              <select
+                value={form.fault}
+                onChange={(event) =>
+                  setForm({ ...form, fault: event.target.value })
+                }
+              >
+                <option value="sensor_failure">Sensor failure</option>
+                <option value="low_battery">Low battery</option>
+                <option value="disconnection">Disconnection</option>
+                <option value="navigation_failure">Navigation failure</option>
+              </select>
+            </label>
+            <label>
+              Title
+              <input
+                required
+                minLength={3}
+                value={form.title}
+                onChange={(event) =>
+                  setForm({ ...form, title: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Technical content
+              <textarea
+                required
+                minLength={20}
+                rows={6}
+                value={form.content}
+                onChange={(event) =>
+                  setForm({ ...form, content: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Recommended next step
+              <textarea
+                required
+                minLength={3}
+                rows={3}
+                value={form.next_step}
+                onChange={(event) =>
+                  setForm({ ...form, next_step: event.target.value })
+                }
+              />
+            </label>
+            <button className="primary" disabled={busy === "create"}>
+              {busy === "create" ? "Creating…" : "Create draft revision"}
+            </button>
+          </form>
+        </section>
+      )}
+      <section className="panel knowledge-list">
+        <PanelHeader
+          title="Technical document library"
+          subtitle="Exact revisions available to the investigation service"
+        />
+        {error && <div className="error" role="alert">{error}</div>}
+        {message && <div className="success" role="status">{message}</div>}
+        {!approved.data || (role === "administrator" && !drafts.data) ? (
+          <Empty text={approved.error ?? drafts.error ?? "Loading document revisions…"} />
+        ) : documents.length === 0 ? (
+          <Empty text="No technical documents are available." />
+        ) : (
+          <div className="document-stack">
+            {documents.map((document) => (
+              <article className="document-card" key={`${document.id}:${document.version}`}>
+                <div className="document-heading">
+                  <div>
+                    <code>{document.id}@{document.version}</code>
+                    <h3>{document.title}</h3>
+                  </div>
+                  <Badge status={document.approved ? "approved" : "draft"} />
+                </div>
+                <p>{document.content}</p>
+                <dl>
+                  <dt>Fault</dt><dd>{label(document.fault)}</dd>
+                  <dt>Next step</dt><dd>{document.next_step}</dd>
+                  <dt>SHA-256</dt><dd><code>{document.sha256}</code></dd>
+                </dl>
+                {!document.approved && role === "administrator" && (
+                  <button
+                    className="primary"
+                    disabled={busy === `${document.id}:${document.version}`}
+                    onClick={() => void approveRevision(document)}
+                  >
+                    {busy === `${document.id}:${document.version}`
+                      ? "Approving…"
+                      : "Approve revision"}
+                  </button>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -1556,6 +1782,8 @@ function Details({
                       {investigation.citations.map((citation) => (
                         <code key={`${citation.type}:${citation.id}`}>
                           {citation.type}:{citation.id}
+                          {citation.version ? `@${citation.version}` : ""}
+                          {citation.sha256 ? ` · ${citation.sha256.slice(0, 12)}` : ""}
                         </code>
                       ))}
                     </div>
