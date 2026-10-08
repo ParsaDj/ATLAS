@@ -22,7 +22,7 @@ Regression tests first reproduced three failures: an already-disconnected robot'
 
 ## Dashboard milestone
 
-The production TypeScript/Vite build succeeds. Five Playwright tests run against the real API with a temporary SQLite database: failure evidence, linked missions, and investigation citations; mission proposal, approval, and cancellation; stale-data warnings and retry recovery during a simulated API outage; mobile navigation without horizontal page overflow; and real worker mission completion. Browser data is synthetic. The suite does not authorize physical robot actions.
+The production TypeScript/Vite build succeeds. Ten Playwright tests run against the real API with a temporary SQLite database. They cover failure evidence and versioned investigation citations; mission proposal, approval, and cancellation; document drafting and separate approval; stale-data warnings and retry recovery; mobile navigation; user and audit administration; maintenance completion; report downloads; replacement missions; and real worker mission completion. Browser data is synthetic. The suite does not authorize physical robot actions.
 
 A backend regression test additionally rejects telemetry for a mission cancelled before it was ever approved. This closes an approval bypass caused by checking only the current mission state.
 
@@ -36,4 +36,4 @@ Four tests verify fresh schema creation, metadata drift detection, downgrade/rea
 
 ## Authentication validation
 
-Tests cover missing authentication, missing CSRF protection, administrator user creation without credential disclosure, technician mission-write denial, authenticated incident investigation, audit attribution, eight-hour session expiry, and simulator login. Six browser workflows include administrator user creation, audit-history display, and sign-out. Authentication is local-only and does not claim readiness for an internet-facing deployment.
+Tests cover missing authentication, missing CSRF protection, administrator user creation without credential disclosure, technician mission-write denial, authenticated incident investigation, audit attribution, eight-hour session expiry, and simulator login. The browser suite includes administrator user creation, audit-history display, and sign-out. Authentication is local-only and does not claim readiness for an internet-facing deployment.
