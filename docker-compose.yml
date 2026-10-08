@@ -20,7 +20,7 @@ services:
       ATLAS_BOOTSTRAP_ADMIN_PASSWORD: atlas-local-demo-password
       ATLAS_TELEMETRY_API_KEY: atlas-local-demo-bridge-key-123456
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)"]
       interval: 5s
       timeout: 3s
       retries: 10
