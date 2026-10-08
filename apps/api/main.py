@@ -16,7 +16,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, AwareDatetime, ConfigDict
-from sqlalchemy import Boolean, ForeignKey, create_engine, String, Text, JSON, select, event
+from sqlalchemy import Boolean, ForeignKey, Index, create_engine, String, Text, JSON, select, event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
@@ -41,20 +41,42 @@ class Robot(Base):
 
 class Mission(Base):
     __tablename__ = "missions"
+    __table_args__ = (
+        Index("ix_missions_robot_created", "robot_id", "created_at"),
+    )
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    robot_id: Mapped[str] = mapped_column(ForeignKey("robots.id"), index=True)
+    created_at: Mapped[str] = mapped_column(String, index=True)
+    source_incident_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     data: Mapped[dict] = mapped_column(JSON)
 
 
 class Telemetry(Base):
     __tablename__ = "telemetry"
+    __table_args__ = (
+        Index("ix_telemetry_robot_occurred", "robot_id", "occurred_at"),
+        Index("ix_telemetry_mission_occurred", "mission_id", "occurred_at"),
+    )
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    robot_id: Mapped[str] = mapped_column(ForeignKey("robots.id"), index=True)
+    mission_id: Mapped[str | None] = mapped_column(ForeignKey("missions.id"), nullable=True, index=True)
+    occurred_at: Mapped[str] = mapped_column(String, index=True)
+    received_at: Mapped[str] = mapped_column(String, index=True)
     data: Mapped[dict] = mapped_column(JSON)
 
 
 class Incident(Base):
     __tablename__ = "incidents"
+    __table_args__ = (
+        Index("ix_incidents_robot_detected", "robot_id", "detected_at"),
+        Index("ix_incidents_mission_detected", "mission_id", "detected_at"),
+    )
     id: Mapped[str] = mapped_column(String, primary_key=True)
     dedup_key: Mapped[str] = mapped_column(String, unique=True)
+    robot_id: Mapped[str] = mapped_column(ForeignKey("robots.id"), index=True)
+    mission_id: Mapped[str | None] = mapped_column(ForeignKey("missions.id"), nullable=True, index=True)
+    fault_type: Mapped[str] = mapped_column(String, index=True)
+    detected_at: Mapped[str] = mapped_column(String, index=True)
     data: Mapped[dict] = mapped_column(JSON)
 
 
@@ -291,7 +313,8 @@ def create_app(
         if db.scalar(select(Incident).where(Incident.dedup_key == key)):
             return
         iid = str(uuid4())
-        db.add(Incident(id=iid, dedup_key=key, data={"id": iid, "robot_id": robot.id, "mission_id": mission_id, "type": kind, "status": "open", "event_ids": [event_id] if event_id else [], "detected_at": timestamp.isoformat(), "suspected_cause": kind, "resolution": None}))
+        detected_at = timestamp.isoformat()
+        db.add(Incident(id=iid, dedup_key=key, robot_id=robot.id, mission_id=mission_id, fault_type=kind, detected_at=detected_at, data={"id": iid, "robot_id": robot.id, "mission_id": mission_id, "type": kind, "status": "open", "event_ids": [event_id] if event_id else [], "detected_at": detected_at, "suspected_cause": kind, "resolution": None}))
         if mission_id:
             mission = db.get(Mission, mission_id)
             if mission and mission.data["status"] == "running":
@@ -686,7 +709,7 @@ def create_app(
             existing = list(
                 db.scalars(
                     select(Mission).where(
-                        Mission.data["source_incident_id"].as_string() == incident_id
+                        Mission.source_incident_id == incident_id
                     )
                 )
             )
@@ -710,7 +733,7 @@ def create_app(
                 "replacement_for_mission_id": source.id,
                 "proposed_by": actor["username"],
             }
-            db.add(Mission(id=mission_id, data=data))
+            db.add(Mission(id=mission_id, robot_id=data["robot_id"], created_at=data["created_at"], source_incident_id=incident_id, data=data))
             audit(
                 db,
                 actor["id"],
@@ -852,10 +875,10 @@ def create_app(
     def event_records(db, robot_id=None, mission_id=None, limit=100, offset=0):
         query = select(Telemetry)
         if robot_id is not None:
-            query = query.where(Telemetry.data["robot_id"].as_string() == robot_id)
+            query = query.where(Telemetry.robot_id == robot_id)
         if mission_id is not None:
-            query = query.where(Telemetry.data["mission_id"].as_string() == mission_id)
-        query = query.order_by(Telemetry.data["occurred_at"].as_string().desc(), Telemetry.id).limit(limit).offset(offset)
+            query = query.where(Telemetry.mission_id == mission_id)
+        query = query.order_by(Telemetry.occurred_at.desc(), Telemetry.id).limit(limit).offset(offset)
         return [r.data for r in db.scalars(query)]
 
     @app.get("/api/robots/{robot_id}/telemetry")
@@ -882,15 +905,14 @@ def create_app(
         with sessions() as db:
             query = select(Mission)
             if robot_id is not None:
-                query = query.where(Mission.data["robot_id"].as_string() == robot_id)
+                query = query.where(Mission.robot_id == robot_id)
             if status is not None:
                 query = query.where(Mission.data["status"].as_string() == status)
             if source_incident_id is not None:
                 query = query.where(
-                    Mission.data["source_incident_id"].as_string()
-                    == source_incident_id
+                    Mission.source_incident_id == source_incident_id
                 )
-            query = query.order_by(Mission.data["created_at"].as_string().desc(), Mission.id).limit(limit).offset(offset)
+            query = query.order_by(Mission.created_at.desc(), Mission.id).limit(limit).offset(offset)
             return [m.data for m in db.scalars(query)]
 
     @app.post("/api/missions", status_code=201)
@@ -900,7 +922,7 @@ def create_app(
                 raise HTTPException(404, "Robot not found")
             mid = str(uuid4())
             data = {"id": mid, **body.model_dump(), "status": "pending", "created_at": clock().isoformat(), "started_at": None, "ended_at": None, "execution_step": 0, "completed_waypoints": 0}
-            db.add(Mission(id=mid, data=data))
+            db.add(Mission(id=mid, robot_id=body.robot_id, created_at=data["created_at"], source_incident_id=None, data=data))
             audit(db, actor["id"], "mission.create", "mission", mid, {"robot_id": body.robot_id, "waypoint_count": len(body.waypoints)})
             return data
 
@@ -994,7 +1016,8 @@ def create_app(
                     if timestamp - body.occurred_at > timedelta(seconds=15) or (r.data["last_event_at"] and body.occurred_at <= datetime.fromisoformat(r.data["last_event_at"])):
                         raise HTTPException(409, "Execution telemetry is stale; reload mission")
                     m.data = {**m.data, "execution_step": body.execution_step, "completed_waypoints": body.completed_waypoints, "execution_position": payload["position"]}
-                db.add(Telemetry(id=body.event_id, data={**payload, "received_at": timestamp.isoformat()}))
+                received_at = timestamp.isoformat()
+                db.add(Telemetry(id=body.event_id, robot_id=body.robot_id, mission_id=body.mission_id, occurred_at=payload["occurred_at"], received_at=received_at, data={**payload, "received_at": received_at}))
                 fresh = not r.data["last_event_at"] or body.occurred_at > datetime.fromisoformat(r.data["last_event_at"])
                 recent = timestamp - body.occurred_at <= timedelta(seconds=15)
                 active = db.get(Mission, r.data["mission_id"]) if r.data["mission_id"] else None
@@ -1026,10 +1049,10 @@ def create_app(
         with sessions() as db:
             query = select(Incident)
             if robot_id is not None:
-                query = query.where(Incident.data["robot_id"].as_string() == robot_id)
+                query = query.where(Incident.robot_id == robot_id)
             if mission_id is not None:
-                query = query.where(Incident.data["mission_id"].as_string() == mission_id)
-            query = query.order_by(Incident.data["detected_at"].as_string().desc(), Incident.id).limit(limit).offset(offset)
+                query = query.where(Incident.mission_id == mission_id)
+            query = query.order_by(Incident.detected_at.desc(), Incident.id).limit(limit).offset(offset)
             return [i.data for i in db.scalars(query)]
 
     @app.get("/api/incidents/{incident_id}")
@@ -1131,9 +1154,9 @@ def create_app(
                 row.data
                 for row in db.scalars(
                     select(Telemetry)
-                    .where(Telemetry.data["mission_id"].as_string() == mission_id)
+                    .where(Telemetry.mission_id == mission_id)
                     .order_by(
-                        Telemetry.data["occurred_at"].as_string().desc(),
+                        Telemetry.occurred_at.desc(),
                         Telemetry.id,
                     )
                 )
@@ -1141,7 +1164,7 @@ def create_app(
             incident_rows = list(
                 db.scalars(
                     select(Incident).where(
-                        Incident.data["mission_id"].as_string() == mission_id
+                        Incident.mission_id == mission_id
                     )
                 )
             )
