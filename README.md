@@ -184,8 +184,8 @@ The reproducible load framework and interpretation limits are documented in
 [docs/performance.md](docs/performance.md).
 The optional live-model benchmark, frozen dataset, and scoring limits are in
 [docs/live-model-evaluation.md](docs/live-model-evaluation.md).
-Every dashboard CI run also captures a downloadable screenshot, incident
-report, and evidence summary for the Robot 3 failure story; see
+Every dashboard CI run also captures a short browser recording, screenshot,
+incident report, and evidence summary for the Robot 3 failure story; see
 [docs/demo-artifacts.md](docs/demo-artifacts.md).
 Production configuration guards and the remaining deployment review are in
 [docs/deployment-security.md](docs/deployment-security.md).

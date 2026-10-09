@@ -7,10 +7,19 @@ const bridgeKey = "atlas-browser-bridge-key-1234567890";
 const artifacts = resolve("demo-artifacts");
 
 test("capture the Robot 3 evidence-grounded failure story", async ({
-  page,
+  browser,
   request,
-}) => {
+}, testInfo) => {
   await mkdir(artifacts, { recursive: true });
+  const context = await browser.newContext({
+    baseURL: "http://127.0.0.1:8011",
+    viewport: { width: 1440, height: 900 },
+    recordVideo: {
+      dir: testInfo.outputPath("video"),
+      size: { width: 1280, height: 720 },
+    },
+  });
+  const page = await context.newPage();
   const login = await request.post("/api/auth/login", {
     data: { username: "atlas-admin", password },
   });
@@ -55,8 +64,10 @@ test("capture the Robot 3 evidence-grounded failure story", async ({
   await page.getByLabel("Username").fill("atlas-admin");
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForTimeout(750);
   await page.getByRole("button", { name: /sensor failure robot-3/ }).click();
   const drawer = page.getByRole("dialog", { name: "Incident evidence" });
+  await page.waitForTimeout(750);
   await drawer.getByRole("button", { name: "Investigate incident" }).click();
   const investigation = drawer.getByRole("region", {
     name: "Investigation result",
@@ -66,6 +77,7 @@ test("capture the Robot 3 evidence-grounded failure story", async ({
   );
   await expect(investigation.getByText(/event:portfolio-demo:/)).toBeVisible();
   await expect(investigation.getByText(/document:DOC-SENSOR-001/)).toBeVisible();
+  await page.waitForTimeout(1500);
 
   await page.screenshot({
     path: resolve(artifacts, "atlas-incident-investigation.png"),
@@ -108,4 +120,8 @@ test("capture the Robot 3 evidence-grounded failure story", async ({
       2,
     ) + "\n",
   );
+  const video = page.video();
+  await context.close();
+  expect(video).not.toBeNull();
+  await video?.saveAs(resolve(artifacts, "atlas-incident-investigation.webm"));
 });
