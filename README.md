@@ -157,7 +157,7 @@ not just endpoint coverage:
 - an interrupted bridge retains events and replays them without duplication;
 - missing cited evidence forces an insufficient investigation.
 
-The current verification includes **222 backend tests**, **120 reproducible
+The current verification includes **224 backend tests**, **120 reproducible
 investigation cases**, and **10 browser workflows**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real
 API. Detailed scope and limitations are recorded in
@@ -186,25 +186,46 @@ Security assumptions and adversarial coverage are documented in
 ## Quick start: run the failure demo
 
 The shortest complete path uses Docker Compose. It builds the dashboard, starts
-PostgreSQL, applies migrations, creates five synthetic robots, and serves the UI
-at [http://127.0.0.1:8000](http://127.0.0.1:8000).
+PostgreSQL, applies migrations, injects Robot 3's sensor failure, verifies the
+evidence contract, and stops at the human maintenance-approval boundary. The UI
+is available at [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
 ```sh
 git clone https://github.com/ParsaDj/ATLAS.git
 cd ATLAS
 docker compose up --build -d db api
-docker compose --profile demo run --rm simulator
+docker compose --profile demo run --rm failure-demo
 ```
 
-The simulator runs for approximately 50 seconds. Sign in with the local demo
-account:
+The terminal prints seven checkpoints from mission approval through the draft
+maintenance ticket. Sign in with the local demo account:
 
 ```text
 Username: atlas-admin
 Password: atlas-local-demo-password
 ```
 
-Expected fresh-database outcomes:
+Open **Incidents**, select Robot 3's sensor incident, and choose **Investigate
+incident**. The result cites the triggering event, failed mission, and approved
+`DOC-SENSOR-001` revision while preserving uncertainty about the underlying
+sensor cause.
+
+The default demonstration leaves maintenance in `draft`. Run a fresh scenario
+with an explicit approval action using:
+
+```sh
+docker compose --profile demo run --rm -e ATLAS_DEMO_APPROVE=1 failure-demo
+```
+
+The complete recording storyboard and supported claims are in
+[docs/demo.md](docs/demo.md). The full five-robot, 50-second fleet scenario
+remains available with:
+
+```sh
+docker compose --profile demo run --rm simulator
+```
+
+Expected full-fleet outcomes:
 
 | Robot | Result |
 | --- | --- |
@@ -213,11 +234,6 @@ Expected fresh-database outcomes:
 | Robot 3 | Sensor-failure incident; mission failed |
 | Robot 4 | Disconnection incident; mission failed |
 | Robot 5 | Mission completed |
-
-Open **Incidents**, select Robot 3's sensor incident, and choose **Investigate
-incident**. The result should cite the triggering event and the approved
-`DOC-SENSOR-001` revision while preserving uncertainty about the underlying
-sensor cause.
 
 The Compose credentials are intentionally local demonstration values. Replace
 them before any shared deployment. Stop the stack with:
@@ -322,13 +338,14 @@ the environment and acceptance sequence.
   observability.
 - `apps/ai_agent/` — deterministic evidence engine and bundled approved guides.
 - `apps/dashboard/` — React/TypeScript customer operations interface.
-- `simulator/` — reproducible five-robot fault demo and healthy mission worker.
+- `simulator/` — focused failure story, five-robot fault demo, and healthy
+  mission worker.
 - `robotics/atlas_bridge/` — reliable ROS-independent transport core.
 - `robotics/atlas_ros/` — ROS 2 subscriptions and Nav2 action adapter.
 - `migrations/` — reviewed Alembic schema history for SQLite and PostgreSQL.
 - `tests/` — unit, integration, concurrency, workflow, and evaluation coverage.
-- `docs/` — architecture, requirements, safety boundaries, evaluation, and ROS
-  acceptance documentation.
+- `docs/` — demo storyboard, architecture, requirements, safety boundaries,
+  evaluation, and ROS acceptance documentation.
 
 ## License and safety boundary
 

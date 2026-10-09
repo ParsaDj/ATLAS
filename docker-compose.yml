@@ -45,6 +45,17 @@ services:
     depends_on:
       api:
         condition: service_healthy
+  failure-demo:
+    build: .
+    profiles: ["demo"]
+    command: ["python", "-m", "simulator.failure_demo", "--url", "http://api:8000"]
+    environment:
+      ATLAS_OPERATOR_USERNAME: atlas-admin
+      ATLAS_OPERATOR_PASSWORD: atlas-local-demo-password
+      ATLAS_TELEMETRY_API_KEY: atlas-local-demo-bridge-key-123456
+    depends_on:
+      api:
+        condition: service_healthy
   worker:
     build: .
     profiles: ["operations"]
