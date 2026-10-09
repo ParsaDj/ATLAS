@@ -25,7 +25,7 @@ before making an accuracy claim.
 
 ## Initial local verification
 
-Python 3.13: 216 tests pass locally, including 120 investigation evaluation cases, seven optional-model contract and adversarial checks, five migration checks, observability and credential-redaction checks, login throttling and browser security headers, versioned document retrieval and approval, authentication/authorization, maintenance-ticket, escaped report and replacement-mission coverage, bridge authentication, durable outbox and Nav2 mission-reconciliation behavior, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL verification runs in GitHub Actions.
+Python 3.13: 222 tests pass locally, including 120 investigation evaluation cases, seven optional-model contract and adversarial checks, six threat-model adversarial checks, five migration checks, observability and credential-redaction checks, login throttling and browser security headers, versioned document retrieval and approval, authentication/authorization, maintenance-ticket, escaped report and replacement-mission coverage, bridge authentication, durable outbox and Nav2 mission-reconciliation behavior, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL verification runs in GitHub Actions.
 
 ## Reliability review
 

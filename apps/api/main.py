@@ -280,6 +280,19 @@ def create_app(
         ):
             raise HTTPException(401, "Invalid bridge credentials")
 
+    def authorize_operational_read(
+        request: Request,
+        x_atlas_bridge_key: str | None = Header(default=None),
+    ):
+        """Allow a human session or the machine bridge identity to read operations."""
+        if request.cookies.get("atlas_session"):
+            return actor_from_request(request)
+        if bridge_key and x_atlas_bridge_key and hmac.compare_digest(
+            x_atlas_bridge_key.encode(), bridge_key.encode()
+        ):
+            return {"id": "robot-bridge", "username": "robot-bridge", "role": "bridge"}
+        raise HTTPException(401, "Authentication required")
+
     def seed_robots():
         with sessions.begin() as db:
             for n in range(1, 6):
@@ -922,12 +935,12 @@ def create_app(
         )
 
     @app.get("/api/robots")
-    def robots():
+    def robots(_actor=Depends(authorize_operational_read)):
         with sessions() as db:
             return [r.data for r in db.scalars(select(Robot).order_by(Robot.id))]
 
     @app.get("/api/robots/{robot_id}")
-    def robot(robot_id: str):
+    def robot(robot_id: str, _actor=Depends(authorize_operational_read)):
         return get_record(Robot, robot_id)
 
     def event_records(db, robot_id=None, mission_id=None, limit=100, offset=0):
@@ -940,26 +953,28 @@ def create_app(
         return [r.data for r in db.scalars(query)]
 
     @app.get("/api/robots/{robot_id}/telemetry")
-    def telemetry(robot_id: str, limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0)):
+    def telemetry(robot_id: str, limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0), _actor=Depends(authorize_operational_read)):
         get_record(Robot, robot_id)
         with sessions() as db:
             return event_records(db, robot_id=robot_id, limit=limit, offset=offset)
 
     @app.get("/api/events")
     def events(robot_id: str | None = None, mission_id: str | None = None,
-               limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0)):
+               limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
+               _actor=Depends(authorize_operational_read)):
         with sessions() as db:
             return event_records(db, robot_id, mission_id, limit, offset)
 
     @app.get("/api/events/{event_id}")
-    def event_detail(event_id: str):
+    def event_detail(event_id: str, _actor=Depends(authorize_operational_read)):
         return get_record(Telemetry, event_id)
 
     @app.get("/api/missions")
     def missions(robot_id: str | None = None,
                  status: Literal["pending", "running", "completed", "failed", "cancelled"] | None = None,
                  source_incident_id: str | None = None,
-                 limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0)):
+                 limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
+                 _actor=Depends(authorize_operational_read)):
         with sessions() as db:
             query = select(Mission)
             if robot_id is not None:
@@ -985,7 +1000,7 @@ def create_app(
             return data
 
     @app.get("/api/missions/{mission_id}")
-    def mission(mission_id: str):
+    def mission(mission_id: str, _actor=Depends(authorize_operational_read)):
         return get_record(Mission, mission_id)
 
     @app.post("/api/missions/{mission_id}/approve")
@@ -1103,7 +1118,8 @@ def create_app(
 
     @app.get("/api/incidents")
     def incidents(robot_id: str | None = None, mission_id: str | None = None,
-                  limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0)):
+                  limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
+                  _actor=Depends(authorize_operational_read)):
         with sessions() as db:
             query = select(Incident)
             if robot_id is not None:
@@ -1114,7 +1130,7 @@ def create_app(
             return [i.data for i in db.scalars(query)]
 
     @app.get("/api/incidents/{incident_id}")
-    def incident_detail(incident_id: str):
+    def incident_detail(incident_id: str, _actor=Depends(authorize_operational_read)):
         return get_record(Incident, incident_id)
 
     @app.post("/api/incidents/{incident_id}/investigate")

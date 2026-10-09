@@ -54,8 +54,9 @@ def test_liveness_readiness_and_request_correlation(database_url):
 def test_metrics_use_route_templates_and_report_operational_state(database_url):
     app, _ = observable_client(database_url)
     with TestClient(app) as client:
-        assert client.get("/api/robots/robot-1").status_code == 200
-        assert client.get("/api/robots/missing").status_code == 404
+        headers = {"X-ATLAS-Bridge-Key": TEST_BRIDGE_KEY}
+        assert client.get("/api/robots/robot-1", headers=headers).status_code == 200
+        assert client.get("/api/robots/missing", headers=headers).status_code == 404
         response = client.get("/metrics")
 
     assert response.status_code == 200
