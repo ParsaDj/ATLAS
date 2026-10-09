@@ -18,14 +18,16 @@ fields, fabricated citations, omitted operational evidence, hypotheses that
 reference unauthorized records, and instructions embedded in technical
 documents. Provider and validation failures use the deterministic result.
 
-These are boundary and adversarial tests, not a measurement of live-model
-diagnostic accuracy. A named model, frozen evaluation dataset, repeated runs,
-and published citation and unsupported-claim measurements are still required
-before making an accuracy claim.
+The optional runner uses a versioned 12-case dataset and records the exact
+model, prompt version, dataset digest, evidence-envelope digests, diagnostic
+classification, confidence, citation completeness, prohibited-claim phrases,
+safe recommendation checks, and fallback rate. It is documented in
+[`live-model-evaluation.md`](live-model-evaluation.md). No live-model result is
+published yet, so the repository makes no live-model accuracy claim.
 
 ## Initial local verification
 
-Python 3.13: 242 tests pass locally, including 120 investigation evaluation cases, 50 generated mission/event traces, production configuration guards, benchmark workload and percentile checks, seven optional-model contract and adversarial checks, six threat-model adversarial checks, two complete failure-demonstration workflows, five migration checks, observability and credential-redaction checks, login throttling and browser security headers, versioned document retrieval and approval, authentication/authorization, maintenance-ticket, escaped report and replacement-mission coverage, bridge authentication, durable outbox and Nav2 mission-reconciliation behavior, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL and clean Compose verification run in GitHub Actions.
+Python 3.13: 247 tests pass locally, including 120 deterministic investigation cases, a frozen 12-case live-model evaluation framework, 50 generated mission/event traces, production configuration guards, benchmark workload and percentile checks, eight optional-model contract and adversarial checks, six threat-model adversarial checks, two complete failure-demonstration workflows, five migration checks, observability and credential-redaction checks, login throttling and browser security headers, versioned document retrieval and approval, authentication/authorization, maintenance-ticket, escaped report and replacement-mission coverage, bridge authentication, durable outbox and Nav2 mission-reconciliation behavior, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL and clean Compose verification run in GitHub Actions.
 
 ## Reliability review
 
