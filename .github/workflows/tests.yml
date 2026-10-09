@@ -47,3 +47,12 @@ jobs:
         working-directory: apps/dashboard
       - run: pnpm test:e2e
         working-directory: apps/dashboard
+      - name: Capture portfolio failure demo
+        run: pnpm demo:capture
+        working-directory: apps/dashboard
+      - name: Upload portfolio demo artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-portfolio-demo
+          path: apps/dashboard/demo-artifacts/
+          if-no-files-found: error
