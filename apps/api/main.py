@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import os
+from pathlib import Path
 import logging
 import math
 import secrets
@@ -945,7 +946,10 @@ def create_app(
 
     @app.get("/version")
     def version():
-        return {"version": "0.1.0", "build_sha": configured_build_sha}
+        project_version = (
+            Path(__file__).resolve().parents[2] / "VERSION"
+        ).read_text(encoding="utf-8").strip()
+        return {"version": project_version, "build_sha": configured_build_sha}
 
     @app.get("/ready")
     def ready():

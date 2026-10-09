@@ -189,6 +189,8 @@ report, and evidence summary for the Robot 3 failure story; see
 [docs/demo-artifacts.md](docs/demo-artifacts.md).
 Production configuration guards and the remaining deployment review are in
 [docs/deployment-security.md](docs/deployment-security.md).
+Tagged releases matching [`VERSION`](VERSION) publish a tested source archive,
+SHA-256 checksums, and a per-file release manifest tied to the exact commit.
 
 ## What ATLAS does not do yet
 

@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify tag matches project version
+        run: test "$GITHUB_REF_NAME" = "v$(cat VERSION)"
+      - name: Run Python tests
+        run: |
+          pip install -r requirements.txt
+          pytest -q
+      - name: Build dashboard
+        working-directory: apps/dashboard
+        run: |
+          npm install --global pnpm@11.25.0
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Build release evidence
+        env:
+          SOURCE_DATE_EPOCH: ${{ github.event.repository.updated_at }}
+        run: |
+          mkdir -p dist
+          python -m scripts.release_manifest --output dist/atlas-${GITHUB_REF_NAME#v}-manifest.json
+          git archive --format=tar.gz --prefix=atlas-${GITHUB_REF_NAME#v}/ \
+            --output=dist/atlas-${GITHUB_REF_NAME#v}.tar.gz HEAD
+          cd dist
+          sha256sum atlas-* > SHA256SUMS
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes

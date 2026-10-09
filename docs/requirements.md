@@ -18,11 +18,14 @@ ATLAS supports a fictional single facility, one customer, and five synthetic ins
 
 ## Remaining roadmap from the project blueprint
 
-1. Harden the synthetic fleet/backend: normalize frequently queried fields and add foreign keys and indexes.
-2. Add an optional hosted-model renderer and versioned prompts while preserving the current evidence contract.
-3. Validate the implemented ROS 2 adapter against one Gazebo/Nav2 robot, then execute approved waypoint missions end to end.
-4. Expand recovery testing and operational measurements.
-5. Prepare a reproducible portfolio release and recorded demo.
+1. Validate the implemented ROS 2 adapter against one Gazebo/Nav2 robot, then execute approved waypoint missions end to end.
+2. Run and publish the frozen live-model benchmark against a named model and exact model version.
+3. Record the two-minute portfolio walkthrough using the reproducible failure-demo artifacts.
+
+Database normalization and indexes, the optional hosted-model renderer,
+recovery/load verification, and reproducible release automation are implemented.
+Release tags matching `VERSION` run the Python suite, build the dashboard, and
+publish a source archive, SHA-256 checksums, and a per-file evidence manifest.
 
 Budget: 5–7 hours/week, no hardware required. Milestones 1–3 form the MVP. Use only synthetic or appropriately licensed public material. The public repository is distributed under Apache-2.0; third-party robot models, maps, libraries, and documentation retain their own licenses and attribution requirements.
 
@@ -36,4 +39,4 @@ The operations worker now executes dashboard-approved missions, reports waypoint
 
 ## Investigation milestone delivered
 
-The first investigation service uses a deterministic evidence engine so the feature remains free and reproducible. It receives only API-authorized records, retrieves approved document revisions from the application database, and returns cited findings with confidence, limitations, next steps, and a read-only tool trace. Revisions are immutable and citations include the exact version and SHA-256 content hash. Bundled Markdown revisions provide a local evaluation fallback. The 120-case dataset covers low battery, sensor failure, and heartbeat loss. Unknown faults and missing records produce insufficient-evidence results. An LLM renderer can be added later without changing these server-side boundaries.
+The first investigation service uses a deterministic evidence engine so the feature remains free and reproducible. It receives only API-authorized records, retrieves approved document revisions from the application database, and returns cited findings with confidence, limitations, next steps, and a read-only tool trace. Revisions are immutable and citations include the exact version and SHA-256 content hash. Bundled Markdown revisions provide a local evaluation fallback. The 120-case dataset covers low battery, sensor failure, and heartbeat loss. Unknown faults and missing records produce insufficient-evidence results. An optional model renderer implements the same evidence contract with strict structured output, citation allowlisting, and deterministic fallback. A frozen live-model evaluation runner records exact model, prompt, dataset, and evidence-envelope provenance.
