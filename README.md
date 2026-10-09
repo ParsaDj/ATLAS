@@ -157,13 +157,16 @@ not just endpoint coverage:
 - an interrupted bridge retains events and replays them without duplication;
 - missing cited evidence forces an insufficient investigation.
 
-The current verification includes **224 backend tests**, **120 reproducible
-investigation cases**, and **10 browser workflows**. GitHub Actions runs backend
+The current verification includes **225 backend tests**, **120 reproducible
+investigation cases**, **50 generated state-machine traces**, and **10 browser
+workflows**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real
 API. Detailed scope and limitations are recorded in
 [docs/evaluation.md](docs/evaluation.md).
 Security assumptions and adversarial coverage are documented in
 [docs/security/threat-model.md](docs/security/threat-model.md).
+Operational invariants and generated sequences are documented in
+[docs/reliability.md](docs/reliability.md).
 
 ## What ATLAS does not do yet
 
@@ -343,7 +346,8 @@ the environment and acceptance sequence.
 - `robotics/atlas_bridge/` — reliable ROS-independent transport core.
 - `robotics/atlas_ros/` — ROS 2 subscriptions and Nav2 action adapter.
 - `migrations/` — reviewed Alembic schema history for SQLite and PostgreSQL.
-- `tests/` — unit, integration, concurrency, workflow, and evaluation coverage.
+- `tests/` — unit, integration, generated state-machine, concurrency, workflow,
+  and evaluation coverage.
 - `docs/` — demo storyboard, architecture, requirements, safety boundaries,
   evaluation, and ROS acceptance documentation.
 
