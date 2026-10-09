@@ -21,6 +21,7 @@ GUIDE = Guide(
 
 def valid_output():
     return {
+        "fault_classification": "sensor_failure",
         "finding": "Robot 3 reported a sensor-path failure during mission 1.",
         "confidence": "supported",
         "hypotheses": [{
@@ -114,3 +115,11 @@ def test_provider_failure_falls_back_without_exposing_error_text():
     assert result["generated_by"] == "atlas-evidence-engine-v1"
     assert result["model"]["status"] == "fallback"
     assert "secret" not in json.dumps(result)
+
+
+def test_missing_triggering_evidence_cannot_receive_supported_diagnosis():
+    output = valid_output()
+    result = investigate_with_model(INCIDENT, MISSION, [], [GUIDE], FakeClient(output))
+    assert result["generated_by"] == "atlas-evidence-engine-v1"
+    assert result["confidence"] == "insufficient"
+    assert result["model"]["status"] == "fallback"

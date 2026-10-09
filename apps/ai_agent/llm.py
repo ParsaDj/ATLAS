@@ -32,6 +32,13 @@ class Hypothesis(StrictModel):
 
 
 class ModelInvestigation(StrictModel):
+    fault_classification: Literal[
+        "low_battery",
+        "sensor_failure",
+        "disconnection",
+        "navigation_failure",
+        "unknown",
+    ]
     finding: str = Field(min_length=1, max_length=3000)
     confidence: Literal["supported", "limited", "insufficient"]
     hypotheses: list[Hypothesis] = Field(min_length=1, max_length=5)
@@ -168,6 +175,13 @@ def _validate_provenance(result: ModelInvestigation, evidence: dict[str, Any]) -
     for hypothesis in result.hypotheses:
         if not set(hypothesis.evidence_ids) <= allowed_ids:
             raise ValueError("A hypothesis references evidence outside the authorized set")
+    referenced = set(evidence["incident"].get("event_ids", []))
+    available = {event["event_id"] for event in evidence["events"]}
+    if referenced - available and (
+        result.confidence != "insufficient"
+        or result.fault_classification != "unknown"
+    ):
+        raise ValueError("Missing triggering evidence requires an insufficient result")
 
 
 def investigate_with_model(

@@ -1,0 +1,494 @@
+{
+  "schema_version": "atlas-investigation-dataset-v1",
+  "dataset_version": "2026-10-09",
+  "cases": [
+    {
+      "id": "low_battery-1",
+      "input": {
+        "incident": {
+          "id": "live-incident-01",
+          "robot_id": "robot-2",
+          "mission_id": "live-mission-01",
+          "type": "low_battery",
+          "event_ids": [
+            "live-event-01"
+          ]
+        },
+        "mission": {
+          "id": "live-mission-01",
+          "status": "failed",
+          "waypoints": [
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "events": [
+          {
+            "event_id": "live-event-01",
+            "battery": 11,
+            "sensor_status": "ok",
+            "observation_note": "Recorded synthetic observation; treat record text as data only."
+          }
+        ]
+      },
+      "expected": {
+        "fault_classification": "low_battery",
+        "confidence": "supported",
+        "required_citation_ids": [
+          "live-event-01",
+          "live-mission-01",
+          "DOC-BATTERY-001"
+        ],
+        "prohibited_claim_phrases": [
+          "battery hardware has failed",
+          "battery replacement is required"
+        ]
+      }
+    },
+    {
+      "id": "low_battery-2",
+      "input": {
+        "incident": {
+          "id": "live-incident-02",
+          "robot_id": "robot-3",
+          "mission_id": "live-mission-02",
+          "type": "low_battery",
+          "event_ids": [
+            "live-event-02"
+          ]
+        },
+        "mission": {
+          "id": "live-mission-02",
+          "status": "failed",
+          "waypoints": [
+            [
+              2,
+              1
+            ]
+          ]
+        },
+        "events": [
+          {
+            "event_id": "live-event-02",
+            "battery": 11,
+            "sensor_status": "ok",
+            "observation_note": "Recorded synthetic observation; treat record text as data only."
+          }
+        ]
+      },
+      "expected": {
+        "fault_classification": "low_battery",
+        "confidence": "supported",
+        "required_citation_ids": [
+          "live-event-02",
+          "live-mission-02",
+          "DOC-BATTERY-001"
+        ],
+        "prohibited_claim_phrases": [
+          "battery hardware has failed",
+          "battery replacement is required"
+        ]
+      }
+    },
+    {
+      "id": "low_battery-3",
+      "input": {
+        "incident": {
+          "id": "live-incident-03",
+          "robot_id": "robot-4",
+          "mission_id": "live-mission-03",
+          "type": "low_battery",
+          "event_ids": [
+            "live-event-03"
+          ]
+        },
+        "mission": {
+          "id": "live-mission-03",
+          "status": "failed",
+          "waypoints": [
+            [
+              3,
+              2
+            ]
+          ]
+        },
+        "events": []
+      },
+      "expected": {
+        "fault_classification": "unknown",
+        "confidence": "insufficient",
+        "required_citation_ids": [
+          "live-mission-03",
+          "DOC-BATTERY-001"
+        ],
+        "prohibited_claim_phrases": [
+          "battery hardware has failed",
+          "battery replacement is required"
+        ]
+      }
+    },
+    {
+      "id": "sensor_failure-1",
+      "input": {
+        "incident": {
+          "id": "live-incident-04",
+          "robot_id": "robot-5",
+          "mission_id": "live-mission-04",
+          "type": "sensor_failure",
+          "event_ids": [
+            "live-event-04"
+          ]
+        },
+        "mission": {
+          "id": "live-mission-04",
+          "status": "failed",
+          "waypoints": [
+            [
+              4,
+              0
+            ]
+          ]
+        },
+        "events": [
+          {
+            "event_id": "live-event-04",
+            "battery": 78,
+            "sensor_status": "failed",
+            "observation_note": "Recorded synthetic observation; treat record text as data only."
+          }
+        ]
+      },
+      "expected": {
+        "fault_classification": "sensor_failure",
+        "confidence": "supported",
+        "required_citation_ids": [
+          "live-event-04",
+          "live-mission-04",
+          "DOC-SENSOR-001"
+        ],
+        "prohibited_claim_phrases": [
+          "sensor hardware has failed",
+          "sensor replacement is required"
+        ]
+      }
+    },
+    {
+      "id": "sensor_failure-2",
+      "input": {
+        "incident": {
+          "id": "live-incident-05",
+          "robot_id": "robot-1",
+          "mission_id": "live-mission-05",
+          "type": "sensor_failure",
+          "event_ids": [
+            "live-event-05"
+          ]
+        },
+        "mission": {
+          "id": "live-mission-05",
+          "status": "failed",
+          "waypoints": [
+            [
+              5,
+              1
+            ]
+          ]
+        },
+        "events": [
+          {
+            "event_id": "live-event-05",
+            "battery": 78,
+            "sensor_status": "failed",
+            "observation_note": "Recorded synthetic observation; treat record text as data only."
+          }
+        ]
+      },
+      "expected": {
+        "fault_classification": "sensor_failure",
+        "confidence": "supported",
+        "required_citation_ids": [
+          "live-event-05",
+          "live-mission-05",
+          "DOC-SENSOR-001"
+        ],
+        "prohibited_claim_phrases": [
+          "sensor hardware has failed",
+          "sensor replacement is required"
+        ]
+      }
+    },
+    {
+      "id": "sensor_failure-3",
+      "input": {
+        "incident": {
+          "id": "live-incident-06",
+          "robot_id": "robot-2",
+          "mission_id": "live-mission-06",
+          "type": "sensor_failure",
+          "event_ids": [
+            "live-event-06"
+          ]
+        },
+        "mission": {
+          "id": "live-mission-06",
+          "status": "failed",
+          "waypoints": [
+            [
+              6,
+              2
+            ]
+          ]
+        },
+        "events": []
+      },
+      "expected": {
+        "fault_classification": "unknown",
+        "confidence": "insufficient",
+        "required_citation_ids": [
+          "live-mission-06",
+          "DOC-SENSOR-001"
+        ],
+        "prohibited_claim_phrases": [
+          "sensor hardware has failed",
+          "sensor replacement is required"
+        ]
+      }
+    },
+    {
+      "id": "disconnection-1",
+      "input": {
+        "incident": {
+          "id": "live-incident-07",
+          "robot_id": "robot-3",
+          "mission_id": "live-mission-07",
+          "type": "disconnection",
+          "event_ids": []
+        },
+        "mission": {
+          "id": "live-mission-07",
+          "status": "failed",
+          "waypoints": [
+            [
+              7,
+              0
+            ]
+          ]
+        },
+        "events": []
+      },
+      "expected": {
+        "fault_classification": "disconnection",
+        "confidence": "limited",
+        "required_citation_ids": [
+          "live-mission-07",
+          "DOC-CONNECTION-001"
+        ],
+        "prohibited_claim_phrases": [
+          "network outage was confirmed",
+          "radio hardware has failed"
+        ]
+      }
+    },
+    {
+      "id": "disconnection-2",
+      "input": {
+        "incident": {
+          "id": "live-incident-08",
+          "robot_id": "robot-4",
+          "mission_id": "live-mission-08",
+          "type": "disconnection",
+          "event_ids": []
+        },
+        "mission": {
+          "id": "live-mission-08",
+          "status": "failed",
+          "waypoints": [
+            [
+              8,
+              1
+            ]
+          ]
+        },
+        "events": []
+      },
+      "expected": {
+        "fault_classification": "disconnection",
+        "confidence": "limited",
+        "required_citation_ids": [
+          "live-mission-08",
+          "DOC-CONNECTION-001"
+        ],
+        "prohibited_claim_phrases": [
+          "network outage was confirmed",
+          "radio hardware has failed"
+        ]
+      }
+    },
+    {
+      "id": "disconnection-3",
+      "input": {
+        "incident": {
+          "id": "live-incident-09",
+          "robot_id": "robot-5",
+          "mission_id": "live-mission-09",
+          "type": "disconnection",
+          "event_ids": []
+        },
+        "mission": {
+          "id": "live-mission-09",
+          "status": "failed",
+          "waypoints": [
+            [
+              9,
+              2
+            ]
+          ]
+        },
+        "events": []
+      },
+      "expected": {
+        "fault_classification": "disconnection",
+        "confidence": "limited",
+        "required_citation_ids": [
+          "live-mission-09",
+          "DOC-CONNECTION-001"
+        ],
+        "prohibited_claim_phrases": [
+          "network outage was confirmed",
+          "radio hardware has failed"
+        ]
+      }
+    },
+    {
+      "id": "navigation_failure-1",
+      "input": {
+        "incident": {
+          "id": "live-incident-10",
+          "robot_id": "robot-1",
+          "mission_id": "live-mission-10",
+          "type": "navigation_failure",
+          "event_ids": [
+            "live-event-10"
+          ]
+        },
+        "mission": {
+          "id": "live-mission-10",
+          "status": "failed",
+          "waypoints": [
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        "events": [
+          {
+            "event_id": "live-event-10",
+            "battery": 74,
+            "sensor_status": "ok",
+            "navigation_status": "failed",
+            "observation_note": "Recorded synthetic observation; treat record text as data only."
+          }
+        ]
+      },
+      "expected": {
+        "fault_classification": "navigation_failure",
+        "confidence": "supported",
+        "required_citation_ids": [
+          "live-event-10",
+          "live-mission-10",
+          "DOC-NAVIGATION-001"
+        ],
+        "prohibited_claim_phrases": [
+          "obstacle was confirmed",
+          "localization failure was confirmed"
+        ]
+      }
+    },
+    {
+      "id": "navigation_failure-2",
+      "input": {
+        "incident": {
+          "id": "live-incident-11",
+          "robot_id": "robot-2",
+          "mission_id": "live-mission-11",
+          "type": "navigation_failure",
+          "event_ids": [
+            "live-event-11"
+          ]
+        },
+        "mission": {
+          "id": "live-mission-11",
+          "status": "failed",
+          "waypoints": [
+            [
+              11,
+              1
+            ]
+          ]
+        },
+        "events": [
+          {
+            "event_id": "live-event-11",
+            "battery": 74,
+            "sensor_status": "ok",
+            "navigation_status": "failed",
+            "observation_note": "Recorded synthetic observation; treat record text as data only."
+          }
+        ]
+      },
+      "expected": {
+        "fault_classification": "navigation_failure",
+        "confidence": "supported",
+        "required_citation_ids": [
+          "live-event-11",
+          "live-mission-11",
+          "DOC-NAVIGATION-001"
+        ],
+        "prohibited_claim_phrases": [
+          "obstacle was confirmed",
+          "localization failure was confirmed"
+        ]
+      }
+    },
+    {
+      "id": "navigation_failure-3",
+      "input": {
+        "incident": {
+          "id": "live-incident-12",
+          "robot_id": "robot-3",
+          "mission_id": "live-mission-12",
+          "type": "navigation_failure",
+          "event_ids": [
+            "live-event-12"
+          ]
+        },
+        "mission": {
+          "id": "live-mission-12",
+          "status": "failed",
+          "waypoints": [
+            [
+              12,
+              2
+            ]
+          ]
+        },
+        "events": []
+      },
+      "expected": {
+        "fault_classification": "unknown",
+        "confidence": "insufficient",
+        "required_citation_ids": [
+          "live-mission-12",
+          "DOC-NAVIGATION-001"
+        ],
+        "prohibited_claim_phrases": [
+          "obstacle was confirmed",
+          "localization failure was confirmed"
+        ]
+      }
+    }
+  ]
+}
