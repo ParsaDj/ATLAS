@@ -20,8 +20,8 @@ jobs:
     env:
       ATLAS_TEST_POSTGRES_URL: postgresql+psycopg://atlas_test:atlas_test@localhost:5432/atlas_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
       - run: pip install -r requirements.txt
@@ -30,11 +30,11 @@ jobs:
   dashboard:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
       - run: pip install -r requirements.txt
@@ -51,7 +51,7 @@ jobs:
         run: pnpm demo:capture
         working-directory: apps/dashboard
       - name: Upload portfolio demo artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: atlas-portfolio-demo
           path: apps/dashboard/demo-artifacts/
