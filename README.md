@@ -157,7 +157,7 @@ not just endpoint coverage:
 - an interrupted bridge retains events and replays them without duplication;
 - missing cited evidence forces an insufficient investigation.
 
-The current verification includes **227 backend tests**, **120 reproducible
+The current verification includes **242 backend tests**, **120 reproducible
 investigation cases**, **50 generated state-machine traces**, and **10 browser
 workflows**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real
@@ -169,6 +169,8 @@ Operational invariants and generated sequences are documented in
 [docs/reliability.md](docs/reliability.md).
 The reproducible load framework and interpretation limits are documented in
 [docs/performance.md](docs/performance.md).
+Production configuration guards and the remaining deployment review are in
+[docs/deployment-security.md](docs/deployment-security.md).
 
 ## What ATLAS does not do yet
 
