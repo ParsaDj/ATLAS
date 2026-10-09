@@ -24,3 +24,8 @@ def test_release_manifest_paths_are_unique_and_sorted():
     paths = [item["path"] for item in build_manifest()["files"]]
     assert paths == sorted(paths)
     assert len(paths) == len(set(paths))
+
+
+def test_runtime_image_includes_version_file():
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert "COPY VERSION VERSION" in dockerfile
