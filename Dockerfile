@@ -11,6 +11,7 @@ ARG ATLAS_BUILD_SHA=development
 ENV ATLAS_BUILD_SHA=$ATLAS_BUILD_SHA
 WORKDIR /app
 COPY requirements.txt .
+COPY VERSION VERSION
 RUN pip install --no-cache-dir -r requirements.txt
 COPY apps/api apps/api
 COPY apps/ai_agent apps/ai_agent
