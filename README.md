@@ -13,12 +13,12 @@ The project uses only simulated robots and synthetic industrial data. It does
 not contain employer code, customer information, proprietary models, or real
 robot telemetry.
 
-![ATLAS incident investigation showing a supported sensor-path finding, explicit uncertainty, evidence citations, and the human maintenance boundary](docs/assets/atlas-incident-investigation.png)
+![ATLAS browser demo: selecting Robot 3's sensor incident and generating an evidence-grounded investigation](docs/assets/atlas-incident-investigation.gif)
 
 *A real browser run against the synthetic ATLAS API. Robot 3 reports a sensor
-failure; the investigation cites the exact event, mission, and approved guide
-while preserving uncertainty and human approval. [Reproduce this
-capture](docs/demo-artifacts.md).*
+failure; the operator opens the incident and generates a finding that cites the
+exact event, mission, and approved guide while preserving uncertainty and human
+approval. [Reproduce this capture](docs/demo-artifacts.md).*
 
 ## The problem
 

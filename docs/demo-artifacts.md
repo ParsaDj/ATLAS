@@ -34,3 +34,16 @@ change on each run. GitHub Actions uploads the same directory as the
 This makes every revision's visual evidence independently downloadable without
 committing generated screenshots or claiming that synthetic results came from
 physical hardware.
+
+## Refresh the README preview
+
+The README uses a compact GIF derived from the browser recording. After a
+successful capture, regenerate it with:
+
+```sh
+./scripts/build_demo_preview.sh
+```
+
+The conversion uses five frames per second, a 720-pixel width, and a bounded
+64-color palette. Review the result before committing it; the CI WebM remains
+the higher-quality evidence artifact.
