@@ -38,7 +38,8 @@ python -m scripts.benchmark \
 
 ## Report contract
 
-The JSON report records the schema and timestamp, target and workload,
+The JSON report records the schema and timestamp, target URL, ATLAS version and
+build commit, workload,
 execution environment, success and duplicate counts, total duration, requests
 per second, and mean, p50, p95, p99, and maximum client-observed latency.
 

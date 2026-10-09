@@ -51,6 +51,23 @@ def test_liveness_readiness_and_request_correlation(database_url):
     assert TEST_BRIDGE_KEY not in repr(log.records)
 
 
+def test_version_reports_injected_build_provenance(database_url):
+    upgrade_database(database_url)
+    app = create_app(
+        database_url,
+        monitor=False,
+        bootstrap_admin_password=TEST_ADMIN_PASSWORD,
+        telemetry_api_key=TEST_BRIDGE_KEY,
+        build_sha="0123456789abcdef",
+    )
+    with TestClient(app) as client:
+        response = client.get("/version")
+    assert response.json() == {
+        "version": "0.1.0",
+        "build_sha": "0123456789abcdef",
+    }
+
+
 def test_metrics_use_route_templates_and_report_operational_state(database_url):
     app, _ = observable_client(database_url)
     with TestClient(app) as client:

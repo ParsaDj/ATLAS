@@ -8,6 +8,8 @@ jobs:
   compose-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      ATLAS_BUILD_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
       - name: Build and start clean deployment
@@ -15,6 +17,7 @@ jobs:
       - name: Verify dashboard and readiness
         run: |
           curl --fail --retry 10 --retry-connrefused http://127.0.0.1:8000/ready
+          curl --fail http://127.0.0.1:8000/version | grep -q "$GITHUB_SHA"
           curl --fail http://127.0.0.1:8000/ | grep -q '<div id="root"></div>'
       - name: Run complete approved failure workflow
         run: |

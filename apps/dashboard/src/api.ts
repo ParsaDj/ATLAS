@@ -1,4 +1,5 @@
 export type Position = { x: number; y: number };
+export type BuildInfo = { version: string; build_sha: string };
 export type Robot = {
   id: string;
   name: string;
