@@ -44,6 +44,7 @@ successful capture, regenerate it with:
 ./scripts/build_demo_preview.sh
 ```
 
-The conversion uses five frames per second, a 720-pixel width, and a bounded
-64-color palette. Review the result before committing it; the CI WebM remains
+The browser recording uses a 1920×1080 viewport and output size. The README
+conversion uses eight frames per second, a 960-pixel width, and a full 256-color
+adaptive palette. Review the result before committing it; the CI WebM remains
 the higher-quality evidence artifact.

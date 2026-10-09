@@ -11,5 +11,5 @@ fi
 
 mkdir -p "$(dirname "$output")"
 ffmpeg -y -i "$input" -filter_complex \
-  "fps=5,scale=720:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=64[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4" \
+  "fps=8,scale=960:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=diff[p];[s1][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle" \
   "$output"

@@ -13,10 +13,10 @@ test("capture the Robot 3 evidence-grounded failure story", async ({
   await mkdir(artifacts, { recursive: true });
   const context = await browser.newContext({
     baseURL: "http://127.0.0.1:8011",
-    viewport: { width: 1440, height: 900 },
+    viewport: { width: 1920, height: 1080 },
     recordVideo: {
       dir: testInfo.outputPath("video"),
-      size: { width: 1280, height: 720 },
+      size: { width: 1920, height: 1080 },
     },
   });
   const page = await context.newPage();
