@@ -1,5 +1,9 @@
 # ATLAS — Understand why a robot mission failed
 
+[![Tests](https://github.com/ParsaDj/ATLAS/actions/workflows/tests.yml/badge.svg)](https://github.com/ParsaDj/ATLAS/actions/workflows/tests.yml)
+[![Docker Compose smoke test](https://github.com/ParsaDj/ATLAS/actions/workflows/compose-smoke.yml/badge.svg)](https://github.com/ParsaDj/ATLAS/actions/workflows/compose-smoke.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 ATLAS is an independent, open-source robotics operations platform for a
 fictional industrial inspection fleet. It turns robot telemetry, mission state,
 operational events, approved technical guidance, and maintenance history into
@@ -8,6 +12,13 @@ an evidence-backed incident workflow.
 The project uses only simulated robots and synthetic industrial data. It does
 not contain employer code, customer information, proprietary models, or real
 robot telemetry.
+
+![ATLAS incident investigation showing a supported sensor-path finding, explicit uncertainty, evidence citations, and the human maintenance boundary](docs/assets/atlas-incident-investigation.png)
+
+*A real browser run against the synthetic ATLAS API. Robot 3 reports a sensor
+failure; the investigation cites the exact event, mission, and approved guide
+while preserving uncertainty and human approval. [Reproduce this
+capture](docs/demo-artifacts.md).*
 
 ## The problem
 
@@ -158,8 +169,8 @@ not just endpoint coverage:
 - missing cited evidence forces an insufficient investigation.
 
 The current verification includes **247 backend tests**, **120 reproducible
-investigation cases**, **50 generated state-machine traces**, and **10 browser
-workflows**. GitHub Actions runs backend
+investigation cases**, **50 generated state-machine traces**, **10 browser
+workflows**, and **1 isolated portfolio capture**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real
 API. Detailed scope and limitations are recorded in
 [docs/evaluation.md](docs/evaluation.md).
