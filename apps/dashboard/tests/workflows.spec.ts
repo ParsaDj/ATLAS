@@ -1,6 +1,9 @@
 import { test, expect } from "@playwright/test";
 
 const password = "atlas-browser-admin-password";
+const bridgeHeaders = {
+  "X-ATLAS-Bridge-Key": "atlas-browser-bridge-key-1234567890",
+};
 let csrf = "";
 
 test.beforeAll(async ({ request }) => {
@@ -111,6 +114,7 @@ test("operator creates, approves and cancels a mission", async ({
   await expect(drawer.getByText("cancelled", { exact: true })).toBeVisible();
   const response = await request.get(
     "/api/missions?robot_id=robot-5&status=cancelled",
+    { headers: bridgeHeaders },
   );
   const records = await response.json();
   expect(records).toHaveLength(1);
@@ -391,7 +395,9 @@ test("approved dashboard mission executes in a real worker process", async ({
     await expect(drawer.getByText("2 of 2 waypoints reached")).toBeVisible();
     expect(workerError).toBeUndefined();
     const missions = await (
-      await request.get("/api/missions?robot_id=robot-1&status=completed")
+      await request.get("/api/missions?robot_id=robot-1&status=completed", {
+        headers: bridgeHeaders,
+      })
     ).json();
     expect(
       missions.some(
