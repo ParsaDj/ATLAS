@@ -157,7 +157,7 @@ not just endpoint coverage:
 - an interrupted bridge retains events and replays them without duplication;
 - missing cited evidence forces an insufficient investigation.
 
-The current verification includes **242 backend tests**, **120 reproducible
+The current verification includes **247 backend tests**, **120 reproducible
 investigation cases**, **50 generated state-machine traces**, and **10 browser
 workflows**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real
@@ -169,6 +169,8 @@ Operational invariants and generated sequences are documented in
 [docs/reliability.md](docs/reliability.md).
 The reproducible load framework and interpretation limits are documented in
 [docs/performance.md](docs/performance.md).
+The optional live-model benchmark, frozen dataset, and scoring limits are in
+[docs/live-model-evaluation.md](docs/live-model-evaluation.md).
 Production configuration guards and the remaining deployment review are in
 [docs/deployment-security.md](docs/deployment-security.md).
 
@@ -177,8 +179,8 @@ Production configuration guards and the remaining deployment review are in
 - It is not a physical robot safety controller and never sends raw motor
   commands.
 - The optional LLM investigator requires a separately configured hosted or
-  local JSON-schema-capable model. Its quality has contract and adversarial
-  coverage, but it does not yet have a published live-model accuracy benchmark.
+  local JSON-schema-capable model. Its contract, adversarial behavior, and
+  evaluation runner are tested, but no live-model result is published yet.
 - The ROS 2/Nav2 adapter has unit and contract coverage, but its Gazebo runtime
   acceptance sequence still requires Ubuntu 24.04, ROS 2 Jazzy, and Gazebo
   Harmonic.
