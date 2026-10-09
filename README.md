@@ -102,7 +102,9 @@ flowchart LR
 - Structured logs, correlation IDs, Prometheus metrics, readiness checks, and
   optional OpenTelemetry OTLP trace export.
 - Local authentication, role-based authorization, CSRF protection, login
-  throttling, audit logs, browser security headers, and secure-cookie support.
+  throttling, authenticated operational reads, audit logs, browser security
+  headers, and secure-cookie support. The tested threat model maps abuse cases
+  to controls and residual risks.
 
 ## Engineering decisions worth inspecting
 
@@ -155,11 +157,13 @@ not just endpoint coverage:
 - an interrupted bridge retains events and replays them without duplication;
 - missing cited evidence forces an insufficient investigation.
 
-The current verification includes **216 backend tests**, **120 reproducible
+The current verification includes **222 backend tests**, **120 reproducible
 investigation cases**, and **10 browser workflows**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real
 API. Detailed scope and limitations are recorded in
 [docs/evaluation.md](docs/evaluation.md).
+Security assumptions and adversarial coverage are documented in
+[docs/security/threat-model.md](docs/security/threat-model.md).
 
 ## What ATLAS does not do yet
 

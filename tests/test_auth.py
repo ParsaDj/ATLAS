@@ -175,7 +175,7 @@ def test_security_headers_cover_api_errors_and_https(database_url):
     with TestClient(app, base_url="https://atlas.example") as client:
         response = client.get("/api/robots/missing")
 
-    assert response.status_code == 404
+    assert response.status_code == 401
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["X-Frame-Options"] == "DENY"
     assert response.headers["Referrer-Policy"] == "no-referrer"
