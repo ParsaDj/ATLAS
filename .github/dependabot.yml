@@ -6,19 +6,22 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      compatible-python-updates:
+      routine-python-updates:
         patterns:
           - "*"
         update-types:
           - minor
           - patch
+    ignore:
+      # pydantic declares an exact core version; update the pair together.
+      - dependency-name: pydantic-core
   - package-ecosystem: npm
     directory: "/apps/dashboard"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      compatible-dashboard-updates:
+      routine-dashboard-updates:
         patterns:
           - "*"
         update-types:
@@ -30,7 +33,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      compatible-action-updates:
+      routine-action-updates:
         patterns:
           - "*"
         update-types:
