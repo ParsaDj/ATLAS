@@ -1,4 +1,6 @@
 import hashlib
+import json
+import tomllib
 
 from scripts.release_manifest import ROOT, build_manifest, project_version
 
@@ -29,3 +31,14 @@ def test_release_manifest_paths_are_unique_and_sorted():
 def test_runtime_image_includes_version_file():
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert "COPY VERSION VERSION" in dockerfile
+
+
+def test_all_published_version_surfaces_match():
+    version = project_version()
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    dashboard = json.loads(
+        (ROOT / "apps/dashboard/package.json").read_text(encoding="utf-8")
+    )
+
+    assert pyproject["project"]["version"] == version
+    assert dashboard["version"] == version
