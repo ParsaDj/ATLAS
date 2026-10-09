@@ -14,6 +14,7 @@ import {
   type TechnicalDocument,
   type LoginResult,
   type Position,
+  type BuildInfo,
   rememberCsrf,
 } from "./api";
 import "./style.css";
@@ -202,6 +203,7 @@ function App({
   const [selection, setSelection] = useState<Selection | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const fleet = useResource<Robot[]>("/api/robots", revision);
+  const build = useResource<BuildInfo>("/version");
   const missions = useResource<Mission[]>(
     `/api/missions?limit=10&offset=${view === "Missions" ? page * 10 : 0}`,
     revision,
@@ -638,7 +640,7 @@ function App({
             />
           )}
           <footer>
-            ATLAS · Intelligent robot operations{" "}
+            ATLAS {build.data ? `v${build.data.version} · ${build.data.build_sha.slice(0, 12)}` : ""} · Intelligent robot operations{" "}
             <span>Independent project / synthetic data only</span>
           </footer>
         </div>

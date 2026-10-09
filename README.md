@@ -168,7 +168,7 @@ not just endpoint coverage:
 - an interrupted bridge retains events and replays them without duplication;
 - missing cited evidence forces an insufficient investigation.
 
-The current verification includes **247 backend tests**, **120 reproducible
+The current verification includes **249 backend tests**, **120 reproducible
 investigation cases**, **50 generated state-machine traces**, **10 browser
 workflows**, and **1 isolated portfolio capture**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real

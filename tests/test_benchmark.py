@@ -1,4 +1,6 @@
-from scripts.benchmark import build_workload, percentile, summarize
+import httpx
+
+from scripts.benchmark import build_workload, percentile, summarize, target_provenance
 
 
 def test_workload_has_reproducible_exact_duplicates():
@@ -30,4 +32,18 @@ def test_percentiles_and_summary_are_calculated_from_measured_samples():
         "p95": 38.5,
         "p99": 39.7,
         "max": 40,
+    }
+
+
+def test_benchmark_records_target_build_provenance():
+    def get(url, timeout):
+        return httpx.Response(
+            200,
+            json={"version": "0.1.0", "build_sha": "abc123"},
+            request=httpx.Request("GET", url),
+        )
+
+    assert target_provenance("https://atlas.example/", 3, get=get) == {
+        "version": "0.1.0",
+        "build_sha": "abc123",
     }

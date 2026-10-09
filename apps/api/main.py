@@ -240,6 +240,7 @@ def create_app(
     environment=None,
     public_url=None,
     secure_cookies=None,
+    build_sha=None,
 ):
     configured_database_url = database_url or os.getenv(
         "DATABASE_URL", "sqlite:///./atlas.db"
@@ -257,6 +258,7 @@ def create_app(
     configured_bootstrap_password = (
         bootstrap_admin_password or os.getenv("ATLAS_BOOTSTRAP_ADMIN_PASSWORD")
     )
+    configured_build_sha = build_sha or os.getenv("ATLAS_BUILD_SHA", "development")
     validate_deployment_config(
         environment=deployment_environment,
         database_url=configured_database_url,
@@ -940,6 +942,10 @@ def create_app(
     @app.get("/health")
     def health():
         return {"status": "ok"}
+
+    @app.get("/version")
+    def version():
+        return {"version": "0.1.0", "build_sha": configured_build_sha}
 
     @app.get("/ready")
     def ready():

@@ -7,6 +7,8 @@ COPY apps/dashboard/ ./
 RUN pnpm build
 
 FROM python:3.13-slim
+ARG ATLAS_BUILD_SHA=development
+ENV ATLAS_BUILD_SHA=$ATLAS_BUILD_SHA
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
