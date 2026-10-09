@@ -49,6 +49,7 @@ test("capture the Robot 3 evidence-grounded failure story", async ({
       headers: { "X-ATLAS-Bridge-Key": bridgeKey },
     })
   ).json())[0];
+  const provenance = await (await request.get("/version")).json();
 
   await page.goto("/");
   await page.getByLabel("Username").fill("atlas-admin");
@@ -86,6 +87,7 @@ test("capture the Robot 3 evidence-grounded failure story", async ({
     JSON.stringify(
       {
         schema_version: "atlas-portfolio-demo-v1",
+        atlas: provenance,
         scenario: "Robot 3 inspection sensor failure",
         mission: { id: mission.id, expected_status: "failed" },
         injected_event_id: eventId,

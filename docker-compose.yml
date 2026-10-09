@@ -13,7 +13,10 @@ services:
       timeout: 5s
       retries: 10
   api:
-    build: .
+    build:
+      context: .
+      args:
+        ATLAS_BUILD_SHA: ${ATLAS_BUILD_SHA:-development}
     environment:
       DATABASE_URL: postgresql+psycopg://atlas:atlas@db:5432/atlas
       ATLAS_BOOTSTRAP_ADMIN_USERNAME: atlas-admin

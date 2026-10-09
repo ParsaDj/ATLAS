@@ -21,7 +21,8 @@ The command starts an isolated temporary API and writes three files under
 - `atlas-incident-investigation.png` shows the customer-facing investigation;
 - `atlas-incident-report.html` is the downloadable incident report; and
 - `atlas-demo-evidence.json` records the mission, injected event, incident,
-  citations, confidence, limitation, and recommended next step.
+  citations, confidence, limitation, recommended next step, and exact ATLAS
+  build provenance.
 
 Generated files are ignored by Git because mission and incident identifiers
 change on each run. GitHub Actions uploads the same directory as the

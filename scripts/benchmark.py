@@ -20,6 +20,17 @@ import httpx
 SCHEMA_VERSION = "atlas-telemetry-benchmark-v1"
 
 
+def target_provenance(url: str, timeout: float, get=httpx.get) -> dict:
+    response = get(f"{url.rstrip('/')}/version", timeout=timeout)
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload.get("version"), str) or not isinstance(
+        payload.get("build_sha"), str
+    ):
+        raise RuntimeError("ATLAS version endpoint returned an invalid response")
+    return payload
+
+
 def percentile(values: list[float], quantile: float) -> float:
     """Return an interpolated percentile for a non-empty sample."""
     if not values:
@@ -134,6 +145,7 @@ def run_benchmark(
 ) -> dict:
     if concurrency < 1:
         raise ValueError("concurrency must be positive")
+    provenance = target_provenance(url, timeout)
     run_id = str(uuid4())
     if warmup:
         warmup_payloads = build_workload(warmup, 0, f"{run_id}:warmup", seed=seed)
@@ -167,6 +179,7 @@ def run_benchmark(
         "schema_version": SCHEMA_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "target": url,
+        "target_provenance": provenance,
         "configuration": {
             "requests": request_count,
             "concurrency": concurrency,
