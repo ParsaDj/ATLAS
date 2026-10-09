@@ -19,6 +19,7 @@ services:
       ATLAS_BOOTSTRAP_ADMIN_USERNAME: atlas-admin
       ATLAS_BOOTSTRAP_ADMIN_PASSWORD: atlas-local-demo-password
       ATLAS_TELEMETRY_API_KEY: atlas-local-demo-bridge-key-123456
+      ATLAS_ENVIRONMENT: development
       ATLAS_INVESTIGATOR_MODE: ${ATLAS_INVESTIGATOR_MODE:-deterministic}
       ATLAS_LLM_API_KEY: ${ATLAS_LLM_API_KEY:-}
       ATLAS_LLM_MODEL: ${ATLAS_LLM_MODEL:-}
