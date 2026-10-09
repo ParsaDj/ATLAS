@@ -65,5 +65,23 @@ services:
     depends_on:
       api:
         condition: service_healthy
+  benchmark:
+    build: .
+    profiles: ["benchmark"]
+    command:
+      - python
+      - -m
+      - scripts.benchmark
+      - --url
+      - http://api:8000
+    environment:
+      ATLAS_TELEMETRY_API_KEY: atlas-local-demo-bridge-key-123456
+      ATLAS_BENCHMARK_REQUESTS: ${ATLAS_BENCHMARK_REQUESTS:-1000}
+      ATLAS_BENCHMARK_CONCURRENCY: ${ATLAS_BENCHMARK_CONCURRENCY:-10}
+      ATLAS_BENCHMARK_DUPLICATE_FRACTION: ${ATLAS_BENCHMARK_DUPLICATE_FRACTION:-0.1}
+      ATLAS_BENCHMARK_WARMUP: ${ATLAS_BENCHMARK_WARMUP:-50}
+    depends_on:
+      api:
+        condition: service_healthy
 volumes:
   atlas-data:
