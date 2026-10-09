@@ -1,0 +1,47 @@
+name: Docker Compose smoke test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  compose-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start clean deployment
+        run: docker compose up --build --wait db api
+      - name: Verify dashboard and readiness
+        run: |
+          curl --fail --retry 10 --retry-connrefused http://127.0.0.1:8000/ready
+          curl --fail http://127.0.0.1:8000/ | grep -q '<div id="root"></div>'
+      - name: Run complete approved failure workflow
+        run: |
+          docker compose --profile demo run --rm -e ATLAS_DEMO_APPROVE=1 failure-demo | tee /tmp/atlas-demo-first.log
+          grep -q 'HUMAN APPROVED' /tmp/atlas-demo-first.log
+      - name: Restart database and API
+        run: |
+          docker compose stop api
+          docker compose restart db
+          docker compose up -d --wait api
+          curl --fail --retry 10 --retry-connrefused http://127.0.0.1:8000/ready
+      - name: Verify persisted recovery with another workflow
+        run: |
+          docker compose --profile demo run --rm failure-demo | tee /tmp/atlas-demo-recovery.log
+          grep -q 'HUMAN APPROVAL REQUIRED' /tmp/atlas-demo-recovery.log
+      - name: Exercise telemetry benchmark framework
+        run: |
+          docker compose --profile benchmark run --rm \
+            -e ATLAS_BENCHMARK_REQUESTS=100 \
+            -e ATLAS_BENCHMARK_CONCURRENCY=5 \
+            -e ATLAS_BENCHMARK_WARMUP=10 \
+            benchmark | tee /tmp/atlas-benchmark.json
+          grep -q 'atlas-telemetry-benchmark-v1' /tmp/atlas-benchmark.json
+          grep -q '"successful": 100' /tmp/atlas-benchmark.json
+      - name: Capture container diagnostics
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop clean deployment
+        if: always()
+        run: docker compose down --volumes --remove-orphans

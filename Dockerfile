@@ -17,5 +17,6 @@ COPY alembic.ini alembic.ini
 COPY migrations migrations
 COPY --from=dashboard /build/dist apps/dashboard/dist
 COPY simulator simulator
+COPY scripts scripts
 EXPOSE 8000
 CMD ["sh", "-c", "alembic upgrade head && exec uvicorn apps.api.main:app --host 0.0.0.0 --port 8000"]

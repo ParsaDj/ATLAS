@@ -4,7 +4,7 @@ Run `python -m pytest -q`. Current tests verify synthetic operational behavior a
 
 The full-fleet test advances a controlled clock through the simulator scenario and asserts two completed missions, three failed missions, and the three expected incident types. Other tests check duplicate delivery (including concurrent retries), conflicting event IDs, concurrent approvals, invalid state transitions, input validation, stale telemetry, missing heartbeats, and recovery without resurrecting failed missions.
 
-SQLite is verified locally, and the initial GitHub Actions run passed the workflow suite against PostgreSQL 17. The shared fixture can run the workflow tests against PostgreSQL in isolated schemas using ATLAS_TEST_POSTGRES_URL. CI now provisions PostgreSQL 17 for this. Docker Compose still needs an integration run; the GitHub PostgreSQL service verifies database behavior but does not build the application container.
+SQLite is verified locally, and GitHub Actions runs the workflow suite against PostgreSQL 17. The shared fixture uses isolated schemas through `ATLAS_TEST_POSTGRES_URL`. A separate Compose workflow builds the actual multi-stage image, starts a fresh PostgreSQL volume, runs the approved failure demonstration, restarts the database and API, verifies a second persisted workflow, and executes a small benchmark smoke workload.
 
 ## Incident investigation evaluation
 
@@ -25,7 +25,7 @@ before making an accuracy claim.
 
 ## Initial local verification
 
-Python 3.13: 225 tests pass locally, including 120 investigation evaluation cases, 50 generated mission/event traces, seven optional-model contract and adversarial checks, six threat-model adversarial checks, two complete failure-demonstration workflows, five migration checks, observability and credential-redaction checks, login throttling and browser security headers, versioned document retrieval and approval, authentication/authorization, maintenance-ticket, escaped report and replacement-mission coverage, bridge authentication, durable outbox and Nav2 mission-reconciliation behavior, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL verification runs in GitHub Actions.
+Python 3.13: 227 tests pass locally, including 120 investigation evaluation cases, 50 generated mission/event traces, benchmark workload and percentile checks, seven optional-model contract and adversarial checks, six threat-model adversarial checks, two complete failure-demonstration workflows, five migration checks, observability and credential-redaction checks, login throttling and browser security headers, versioned document retrieval and approval, authentication/authorization, maintenance-ticket, escaped report and replacement-mission coverage, bridge authentication, durable outbox and Nav2 mission-reconciliation behavior, and simulator login handling. A live 50-second HTTP demo produced the three expected incidents, with two completed and three failed missions. Dependency tooling emits a Starlette/httpx deprecation warning; all assertions pass. PostgreSQL and clean Compose verification run in GitHub Actions.
 
 ## Reliability review
 

@@ -157,7 +157,7 @@ not just endpoint coverage:
 - an interrupted bridge retains events and replays them without duplication;
 - missing cited evidence forces an insufficient investigation.
 
-The current verification includes **225 backend tests**, **120 reproducible
+The current verification includes **227 backend tests**, **120 reproducible
 investigation cases**, **50 generated state-machine traces**, and **10 browser
 workflows**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real
@@ -167,6 +167,8 @@ Security assumptions and adversarial coverage are documented in
 [docs/security/threat-model.md](docs/security/threat-model.md).
 Operational invariants and generated sequences are documented in
 [docs/reliability.md](docs/reliability.md).
+The reproducible load framework and interpretation limits are documented in
+[docs/performance.md](docs/performance.md).
 
 ## What ATLAS does not do yet
 
@@ -182,7 +184,8 @@ Operational invariants and generated sequences are documented in
   one API worker and is not a horizontally scaled deployment.
 - Scale testing is limited to the synthetic portfolio environment.
 - Docker Compose has not been exercised on the current development machine;
-  CI validates the PostgreSQL backend and dashboard workflows separately.
+  CI builds and exercises the clean Compose deployment on Linux, including
+  database/API restart recovery and a small telemetry benchmark smoke run.
 - The local account system is not enterprise identity management.
 - The coordinate view is synthetic and is not a surveyed facility map.
 
