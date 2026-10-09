@@ -12,4 +12,10 @@ Investigation output cannot reschedule a robot. Replacement missions require an 
 
 The incident investigator has read-only access to API-supplied telemetry, mission records, and approved technical-document revisions. It cites document identifiers, versions, and content hashes, expresses uncertainty, and treats missing referenced evidence as insufficient. Its tool trace contains only record retrieval and document retrieval operations. It has no database connection, write tools, ticket access, mission transition access, or robot control path.
 
-Ticket creation and rescheduling require authenticated server-side approval before those capabilities are added. A future language model renderer must preserve the same server-enforced evidence and authorization boundary. No model receives direct motor controls or the ability to override safety rules.
+The optional language-model renderer preserves the same server-enforced
+evidence and authorization boundary. Invalid output or unavailable providers
+fall back to the deterministic result. No model receives direct motor controls
+or the ability to override safety rules.
+
+The security assumptions, tested controls, and residual risks are maintained in
+[security/threat-model.md](security/threat-model.md).
