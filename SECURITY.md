@@ -23,4 +23,7 @@ deployment.
 Internet-facing deployments must use HTTPS, secure cookies, unique secrets,
 restricted database access, and a reverse proxy or managed gateway that applies
 network-level rate limits. Demo credentials in repository configuration are not
-production credentials.
+production credentials. Set `ATLAS_ENVIRONMENT=production` to enable startup
+guards for the database, public URL, cookie settings, and core credentials.
+These checks do not replace the review in
+[`docs/deployment-security.md`](docs/deployment-security.md).

@@ -27,7 +27,7 @@ from apps.ai_agent.llm import OpenAICompatibleClient, investigate_with_model
 from apps.api.migrations import require_current_schema
 from apps.api.observability import Metrics, install_observability, tracer_provider
 from apps.api.reports import incident_report, mission_report
-from apps.api.security import LoginRateLimiter
+from apps.api.security import LoginRateLimiter, validate_deployment_config
 
 
 def now():
@@ -237,8 +237,35 @@ def create_app(
     security_clock=None,
     investigator_mode=None,
     llm_client=None,
+    environment=None,
+    public_url=None,
+    secure_cookies=None,
 ):
-    engine = create_engine(database_url or os.getenv("DATABASE_URL", "sqlite:///./atlas.db"))
+    configured_database_url = database_url or os.getenv(
+        "DATABASE_URL", "sqlite:///./atlas.db"
+    )
+    deployment_environment = environment or os.getenv(
+        "ATLAS_ENVIRONMENT", "development"
+    )
+    configured_public_url = public_url or os.getenv("ATLAS_PUBLIC_URL")
+    secure_session_cookies = (
+        secure_cookies
+        if secure_cookies is not None
+        else os.getenv("ATLAS_SECURE_COOKIES") == "1"
+    )
+    bridge_key = telemetry_api_key or os.getenv("ATLAS_TELEMETRY_API_KEY")
+    configured_bootstrap_password = (
+        bootstrap_admin_password or os.getenv("ATLAS_BOOTSTRAP_ADMIN_PASSWORD")
+    )
+    validate_deployment_config(
+        environment=deployment_environment,
+        database_url=configured_database_url,
+        public_url=configured_public_url,
+        secure_cookies=secure_session_cookies,
+        telemetry_api_key=bridge_key,
+        bootstrap_admin_password=configured_bootstrap_password,
+    )
+    engine = create_engine(configured_database_url)
     if engine.dialect.name == "sqlite":
         # SQLite has no row locks; serialize transactions for equivalent invariants.
         @event.listens_for(engine, "connect")
@@ -256,7 +283,6 @@ def create_app(
     tracing = tracer_provider(otlp_endpoint)
     login_limiter = LoginRateLimiter(time_source=security_clock or monotonic)
     dummy_password = password_hash(secrets.token_urlsafe(24))
-    bridge_key = telemetry_api_key or os.getenv("ATLAS_TELEMETRY_API_KEY")
     if bridge_key and len(bridge_key) < 24:
         raise ValueError("ATLAS_TELEMETRY_API_KEY must contain at least 24 characters")
     selected_investigator = investigator_mode or os.getenv(
@@ -304,7 +330,7 @@ def create_app(
         with sessions.begin() as db:
             if db.scalar(select(User.id).limit(1)):
                 return
-            password = bootstrap_admin_password or os.getenv("ATLAS_BOOTSTRAP_ADMIN_PASSWORD")
+            password = configured_bootstrap_password
             if not password or len(password) < 12:
                 raise RuntimeError(
                     "No users exist. Set ATLAS_BOOTSTRAP_ADMIN_PASSWORD to at least "
@@ -523,7 +549,7 @@ def create_app(
                 max_age=8 * 60 * 60,
                 httponly=True,
                 samesite="strict",
-                secure=os.getenv("ATLAS_SECURE_COOKIES") == "1",
+                secure=secure_session_cookies,
             )
             return {
                 "user": {"id": user.id, "username": user.username, "role": user.role},
