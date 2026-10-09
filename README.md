@@ -111,7 +111,9 @@ flowchart LR
 - ROS 2/Nav2 adapter that maps approved missions to `NavigateThroughPoses` and
   translates odometry, battery, diagnostics, and action results into ATLAS.
 - Structured logs, correlation IDs, Prometheus metrics, readiness checks, and
-  optional OpenTelemetry OTLP trace export.
+  optional OpenTelemetry OTLP trace export. The dashboard, `/version` endpoint,
+  demo artifacts, and benchmark reports expose the running build revision so
+  operational evidence can be tied back to source.
 - Local authentication, role-based authorization, CSRF protection, login
   throttling, authenticated operational reads, audit logs, browser security
   headers, and secure-cookie support. The tested threat model maps abuse cases
@@ -168,7 +170,7 @@ not just endpoint coverage:
 - an interrupted bridge retains events and replays them without duplication;
 - missing cited evidence forces an insufficient investigation.
 
-The current verification includes **249 backend tests**, **120 reproducible
+The current verification includes **249 Python tests**, **120 reproducible
 investigation cases**, **50 generated state-machine traces**, **10 browser
 workflows**, and **1 isolated portfolio capture**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real
@@ -201,9 +203,9 @@ Production configuration guards and the remaining deployment review are in
 - The heartbeat monitor and login limiter are process-local. This release runs
   one API worker and is not a horizontally scaled deployment.
 - Scale testing is limited to the synthetic portfolio environment.
-- Docker Compose has not been exercised on the current development machine;
-  CI builds and exercises the clean Compose deployment on Linux, including
-  database/API restart recovery and a small telemetry benchmark smoke run.
+- Docker Compose is validated as a single-host demonstration, including
+  database/API restart recovery and a small telemetry benchmark smoke run. It
+  has not been validated as a distributed or production deployment.
 - The local account system is not enterprise identity management.
 - The coordinate view is synthetic and is not a surveyed facility map.
 
@@ -321,8 +323,9 @@ cd ../..
 
 Open `/docs` for the interactive API. `/health` reports process liveness,
 `/ready` verifies database access, and `/metrics` exposes Prometheus text
-metrics. `.env.example` documents configuration; the application does not load
-that file automatically.
+metrics. `/version` identifies the application and injected build revision.
+`.env.example` documents configuration; the application does not load that file
+automatically.
 
 For dashboard-created healthy missions, run the resumable operations worker:
 
