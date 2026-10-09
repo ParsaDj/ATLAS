@@ -11,7 +11,7 @@ jobs:
     env:
       ATLAS_BUILD_SHA: ${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build and start clean deployment
         run: docker compose up --build --wait db api
       - name: Verify dashboard and readiness
