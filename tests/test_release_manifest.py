@@ -33,6 +33,14 @@ def test_runtime_image_includes_version_file():
     assert "COPY VERSION VERSION" in dockerfile
 
 
+def test_release_workflow_pins_generated_metadata():
+    workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    assert '--generated-at "$generated_at"' in workflow
+    assert "git show -s --format=%cI HEAD" in workflow
+    assert "gzip -n" in workflow
+
+
 def test_all_published_version_surfaces_match():
     version = project_version()
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
