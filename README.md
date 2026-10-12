@@ -191,6 +191,8 @@ Production configuration guards and the remaining deployment review are in
 [docs/deployment-security.md](docs/deployment-security.md).
 Tagged releases matching [`VERSION`](VERSION) publish a tested source archive,
 SHA-256 checksums, and a per-file release manifest tied to the exact commit.
+For a reviewer-oriented account of the problem, tradeoffs, measured evidence,
+and current boundary, read the [engineering case study](docs/case-study.md).
 
 ## What ATLAS does not do yet
 

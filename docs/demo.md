@@ -49,6 +49,24 @@ account, and select **Incidents** to inspect the same records visually.
 6. Show that the ticket begins in `draft`, then perform the explicit approval.
 7. Open the audit history and show the distinct actor-attributed actions.
 
+## Two-minute narration and shot list
+
+| Time | Screen | Narration |
+| --- | --- | --- |
+| 0:00–0:15 | Seven terminal checkpoints | “A sensor observation just failed Robot 3's inspection mission. ATLAS stored the event, failed the mission, created an incident, and stopped before maintenance authorization.” |
+| 0:15–0:30 | Fleet overview and Robot 3 attention state | “The operator sees the affected robot and mission without querying the database or searching separate logs.” |
+| 0:30–0:48 | Incident drawer and triggering event | “The incident retains the exact telemetry identifier, robot, mission, timestamp, and recorded sensor state. Duplicate delivery of this event is idempotent.” |
+| 0:48–1:15 | Investigation result and citations | “The investigator receives only authorized operational records and approved document revisions. It supports a sensor-path failure and cites the mission, triggering event, and exact guide version.” |
+| 1:15–1:30 | Limitation and recommended next step | “The evidence does not distinguish hardware failure, obstruction, calibration drift, or a transient connection problem. ATLAS keeps that uncertainty in the result.” |
+| 1:30–1:48 | Draft maintenance ticket and approval control | “Investigation is read-only. A human separately creates and approves maintenance through server-enforced role and state checks.” |
+| 1:48–2:00 | Audit history, then architecture image | “The workflow is attributed in the audit log. The same API accepts synthetic telemetry today and an authenticated ROS 2 bridge when the runtime is connected.” |
+
+Keep identifiers visible long enough to establish provenance, but zoom the
+browser so the finding, limitation, and citations remain readable. Use captions
+for the seven checkpoints and the human-approval boundary. Do not describe the
+simulation as physical-robot validation or present the optional model as the
+source of deterministic benchmark results.
+
 ## Claims this demonstration supports
 
 - Authenticated telemetry is stored and linked to operational state.
