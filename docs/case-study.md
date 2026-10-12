@@ -45,7 +45,7 @@ drift, or transient communication loss.
 
 ## Measured evidence
 
-- 253 Python tests cover API behavior, transactions, concurrency, security,
+- 254 Python tests cover API behavior, transactions, concurrency, security,
   migrations, the ROS-independent bridge, investigation contracts, and
   evaluation scenarios.
 - 120 deterministic incident cases verify tool selection, required citations,
