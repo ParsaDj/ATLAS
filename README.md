@@ -170,7 +170,7 @@ not just endpoint coverage:
 - an interrupted bridge retains events and replays them without duplication;
 - missing cited evidence forces an insufficient investigation.
 
-The current verification includes **253 Python tests**, **120 reproducible
+The current verification includes **254 Python tests**, **120 reproducible
 investigation cases**, **50 generated state-machine traces**, **10 browser
 workflows**, and **1 isolated portfolio capture**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real
@@ -191,6 +191,8 @@ Production configuration guards and the remaining deployment review are in
 [docs/deployment-security.md](docs/deployment-security.md).
 Tagged releases matching [`VERSION`](VERSION) publish a tested source archive,
 SHA-256 checksums, and a per-file release manifest tied to the exact commit.
+Version history is recorded in [`CHANGELOG.md`](CHANGELOG.md), and the exact
+publication gates are in the [release checklist](docs/release-checklist.md).
 For a reviewer-oriented account of the problem, tradeoffs, measured evidence,
 and current boundary, read the [engineering case study](docs/case-study.md).
 
