@@ -34,13 +34,14 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm build
       - name: Build release evidence
-        env:
-          SOURCE_DATE_EPOCH: ${{ github.event.repository.updated_at }}
         run: |
           mkdir -p dist
-          python -m scripts.release_manifest --output dist/atlas-${GITHUB_REF_NAME#v}-manifest.json
-          git archive --format=tar.gz --prefix=atlas-${GITHUB_REF_NAME#v}/ \
-            --output=dist/atlas-${GITHUB_REF_NAME#v}.tar.gz HEAD
+          generated_at="$(git show -s --format=%cI HEAD)"
+          python -m scripts.release_manifest \
+            --generated-at "$generated_at" \
+            --output dist/atlas-${GITHUB_REF_NAME#v}-manifest.json
+          git archive --format=tar --prefix=atlas-${GITHUB_REF_NAME#v}/ HEAD \
+            | gzip -n > dist/atlas-${GITHUB_REF_NAME#v}.tar.gz
           cd dist
           sha256sum atlas-* > SHA256SUMS
       - name: Publish GitHub release
