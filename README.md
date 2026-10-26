@@ -171,7 +171,7 @@ not just endpoint coverage:
 - missing cited evidence forces an insufficient investigation.
 
 The current verification includes **257 Python tests**, **120 reproducible
-investigation cases**, **50 generated state-machine traces**, **10 browser
+investigation cases**, **50 generated state-machine traces**, **11 browser
 workflows**, and **1 isolated portfolio capture**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real
 API. Detailed scope and limitations are recorded in

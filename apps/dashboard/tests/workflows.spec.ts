@@ -174,6 +174,46 @@ test("mobile navigation keeps incident and mission workflows accessible", async 
   ).toBeLessThanOrEqual(390);
 });
 
+test("mission history follows stable API cursors", async ({ page, request }) => {
+  const login = await request.post("/api/auth/login", {
+    data: { username: "atlas-admin", password },
+  });
+  expect(login.ok()).toBeTruthy();
+  const paginationCsrf = (await login.json()).csrf_token;
+  for (let index = 0; index < 11; index++) {
+    const created = await request.post("/api/missions", {
+      data: {
+        robot_id: "robot-1",
+        waypoints: [{ x: index, y: index + 1 }],
+      },
+      headers: { "X-CSRF-Token": paginationCsrf },
+    });
+    expect(created.ok()).toBeTruthy();
+  }
+
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Missions" })
+    .click();
+  await expect(page.getByText("Page 1 · up to 10 records")).toBeVisible();
+  const nextButton = page.getByRole("button", { name: "Next" });
+  await expect(nextButton).toBeEnabled();
+
+  const nextRequest = page.waitForRequest((candidate) =>
+    candidate.url().includes("/api/missions?limit=10&cursor="),
+  );
+  await nextButton.click();
+  expect((await nextRequest).url()).not.toContain("offset=");
+  await expect(page.getByText("Page 2 · up to 10 records")).toBeVisible();
+
+  const previousRequest = page.waitForRequest(
+    (candidate) => candidate.url().endsWith("/api/missions?limit=10"),
+  );
+  await page.getByRole("button", { name: "Previous" }).click();
+  await previousRequest;
+  await expect(page.getByText("Page 1 · up to 10 records")).toBeVisible();
+});
+
 test("administrator creates a user and reviews the audit trail", async ({
   page,
 }) => {

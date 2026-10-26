@@ -106,6 +106,11 @@ React/TypeScript lives in `apps/dashboard`. Vite builds static assets; FastAPI m
 
 The UI polls every five seconds with non-overlapping requests per resource and aborts requests when a view changes. Failed refreshes retain the last successful data and explicitly mark it stale. Native modal dialogs keep keyboard focus inside the selected workflow. Creating a mission saves a pending proposal; a separate approval action begins execution. Mutations are disabled while pending and the backend validates all state transitions.
 
+Mission and incident history pages retain the opaque cursor for each visited
+page. Moving forward follows `X-Next-Cursor`; moving backward reuses the earlier
+cursor. Opening a history view resets traversal to the newest records and
+refreshes immediately, while polling the current page cannot shift its boundary.
+
 Incident details retrieve referenced evidence separately from the paginated event timeline. Missing evidence is an error state, never replaced with an AI explanation. The coordinate plot uses last reported positions; it is not a navigation map.
 
 The Knowledge view exposes approved technical-document revisions to every authenticated role. Administrators also see drafts and can create and approve revisions through separate actions. Each card displays its fault classification, recommended action, exact version, and full content hash. Incident citations show the same version and a shortened hash so an operator can trace a finding back to its source revision.
