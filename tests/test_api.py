@@ -239,6 +239,73 @@ def test_pagination_rejects_unbounded_requests(system, path):
     assert client.get(path, params={'offset': -1}).status_code == 422
 
 
+def test_event_cursor_is_stable_when_newer_telemetry_arrives(system):
+    client, time, _ = system
+    mid = mission(client, 'robot-1')
+    for tick in range(3):
+        time[0] += timedelta(seconds=1)
+        assert client.post('/api/telemetry', json=event(time, mid, 'robot-1', tick)).status_code == 200
+
+    first = client.get('/api/events', params={'mission_id': mid, 'limit': 2})
+    assert [row['event_id'] for row in first.json()] == [
+        'test:robot-1:2',
+        'test:robot-1:1',
+    ]
+    cursor = first.headers['X-Next-Cursor']
+
+    time[0] += timedelta(seconds=1)
+    assert client.post('/api/telemetry', json=event(time, mid, 'robot-1', 3)).status_code == 200
+    second = client.get(
+        '/api/events',
+        params={'mission_id': mid, 'limit': 2, 'cursor': cursor},
+    )
+
+    assert [row['event_id'] for row in second.json()] == ['test:robot-1:0']
+    assert 'X-Next-Cursor' not in second.headers
+
+
+def test_cursor_handles_records_with_equal_timestamps(system):
+    client, _, _ = system
+    created = [
+        client.post(
+            '/api/missions',
+            json={'robot_id': 'robot-1', 'waypoints': [{'x': index, 'y': 0}]},
+        ).json()['id']
+        for index in range(3)
+    ]
+
+    received = []
+    cursor = None
+    while True:
+        params = {'limit': 1}
+        if cursor:
+            params['cursor'] = cursor
+        response = client.get('/api/missions', params=params)
+        received.extend(row['id'] for row in response.json())
+        cursor = response.headers.get('X-Next-Cursor')
+        if not cursor:
+            break
+
+    assert received == sorted(created)
+
+
+def test_cursor_rejects_invalid_feed_and_offset_combination(system):
+    client, _, _ = system
+    for _ in range(2):
+        client.post(
+            '/api/missions',
+            json={'robot_id': 'robot-1', 'waypoints': [{'x': 0, 'y': 0}]},
+        )
+    mission_page = client.get('/api/missions', params={'limit': 1})
+    cursor = mission_page.headers['X-Next-Cursor']
+
+    assert client.get('/api/events', params={'cursor': cursor}).status_code == 422
+    assert client.get('/api/missions', params={'cursor': 'not-a-cursor'}).status_code == 422
+    assert client.get(
+        '/api/missions', params={'cursor': cursor, 'offset': 1}
+    ).status_code == 422
+
+
 def test_cancelled_unapproved_mission_rejects_telemetry(system):
     client, time, _ = system
     created = client.post('/api/missions', json={'robot_id': 'robot-1', 'waypoints': [{'x': 0, 'y': 0}]}).json()
