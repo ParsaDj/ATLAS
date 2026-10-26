@@ -1,8 +1,10 @@
 """Local portfolio API. All operational data is synthetic."""
 import asyncio
 import base64
+import binascii
 import hashlib
 import hmac
+import json
 import os
 from pathlib import Path
 import logging
@@ -19,7 +21,7 @@ from time import monotonic
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, AwareDatetime, ConfigDict
-from sqlalchemy import Boolean, ForeignKey, Index, create_engine, String, Text, JSON, select, event
+from sqlalchemy import Boolean, ForeignKey, Index, and_, create_engine, String, Text, JSON, or_, select, event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
@@ -33,6 +35,33 @@ from apps.api.security import LoginRateLimiter, validate_deployment_config
 
 def now():
     return datetime.now(timezone.utc)
+
+
+def encode_cursor(feed: str, timestamp: str, record_id: str) -> str:
+    payload = json.dumps(
+        {"feed": feed, "timestamp": timestamp, "id": record_id},
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+    return base64.urlsafe_b64encode(payload).decode().rstrip("=")
+
+
+def decode_cursor(cursor: str, feed: str) -> tuple[str, str]:
+    try:
+        padding = "=" * (-len(cursor) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(cursor + padding))
+        if (
+            not isinstance(payload, dict)
+            or payload.get("feed") != feed
+            or not isinstance(payload.get("timestamp"), str)
+            or not isinstance(payload.get("id"), str)
+            or not payload["timestamp"]
+            or not payload["id"]
+        ):
+            raise ValueError
+        return payload["timestamp"], payload["id"]
+    except (ValueError, TypeError, UnicodeDecodeError, binascii.Error, json.JSONDecodeError):
+        raise HTTPException(422, "Invalid pagination cursor") from None
 
 
 class Base(DeclarativeBase):
@@ -979,37 +1008,80 @@ def create_app(
     def robot(robot_id: str, _actor=Depends(authorize_operational_read)):
         return get_record(Robot, robot_id)
 
-    def event_records(db, robot_id=None, mission_id=None, limit=100, offset=0):
+    def paginated_rows(
+        db,
+        query,
+        *,
+        feed,
+        timestamp_column,
+        id_column,
+        limit,
+        offset,
+        cursor,
+        response,
+    ):
+        if cursor is not None:
+            if offset:
+                raise HTTPException(422, "Cursor and offset cannot be combined")
+            timestamp, record_id = decode_cursor(cursor, feed)
+            query = query.where(
+                or_(
+                    timestamp_column < timestamp,
+                    and_(timestamp_column == timestamp, id_column > record_id),
+                )
+            )
+        rows = list(db.scalars(query.limit(limit + 1).offset(offset)))
+        if len(rows) > limit:
+            last = rows[limit - 1]
+            response.headers["X-Next-Cursor"] = encode_cursor(
+                feed, getattr(last, timestamp_column.key), getattr(last, id_column.key)
+            )
+        return rows[:limit]
+
+    def event_records(db, response, robot_id=None, mission_id=None, limit=100, offset=0, cursor=None):
         query = select(Telemetry)
         if robot_id is not None:
             query = query.where(Telemetry.robot_id == robot_id)
         if mission_id is not None:
             query = query.where(Telemetry.mission_id == mission_id)
-        query = query.order_by(Telemetry.occurred_at.desc(), Telemetry.id).limit(limit).offset(offset)
-        return [r.data for r in db.scalars(query)]
+        query = query.order_by(Telemetry.occurred_at.desc(), Telemetry.id)
+        rows = paginated_rows(
+            db,
+            query,
+            feed="events",
+            timestamp_column=Telemetry.occurred_at,
+            id_column=Telemetry.id,
+            limit=limit,
+            offset=offset,
+            cursor=cursor,
+            response=response,
+        )
+        return [row.data for row in rows]
 
     @app.get("/api/robots/{robot_id}/telemetry")
-    def telemetry(robot_id: str, limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0), _actor=Depends(authorize_operational_read)):
+    def telemetry(robot_id: str, response: Response, limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0), cursor: str | None = Query(None, max_length=512), _actor=Depends(authorize_operational_read)):
         get_record(Robot, robot_id)
         with sessions() as db:
-            return event_records(db, robot_id=robot_id, limit=limit, offset=offset)
+            return event_records(db, response, robot_id=robot_id, limit=limit, offset=offset, cursor=cursor)
 
     @app.get("/api/events")
-    def events(robot_id: str | None = None, mission_id: str | None = None,
+    def events(response: Response, robot_id: str | None = None, mission_id: str | None = None,
                limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
+               cursor: str | None = Query(None, max_length=512),
                _actor=Depends(authorize_operational_read)):
         with sessions() as db:
-            return event_records(db, robot_id, mission_id, limit, offset)
+            return event_records(db, response, robot_id, mission_id, limit, offset, cursor)
 
     @app.get("/api/events/{event_id}")
     def event_detail(event_id: str, _actor=Depends(authorize_operational_read)):
         return get_record(Telemetry, event_id)
 
     @app.get("/api/missions")
-    def missions(robot_id: str | None = None,
+    def missions(response: Response, robot_id: str | None = None,
                  status: Literal["pending", "running", "completed", "failed", "cancelled"] | None = None,
                  source_incident_id: str | None = None,
                  limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
+                 cursor: str | None = Query(None, max_length=512),
                  _actor=Depends(authorize_operational_read)):
         with sessions() as db:
             query = select(Mission)
@@ -1021,8 +1093,19 @@ def create_app(
                 query = query.where(
                     Mission.source_incident_id == source_incident_id
                 )
-            query = query.order_by(Mission.created_at.desc(), Mission.id).limit(limit).offset(offset)
-            return [m.data for m in db.scalars(query)]
+            query = query.order_by(Mission.created_at.desc(), Mission.id)
+            rows = paginated_rows(
+                db,
+                query,
+                feed="missions",
+                timestamp_column=Mission.created_at,
+                id_column=Mission.id,
+                limit=limit,
+                offset=offset,
+                cursor=cursor,
+                response=response,
+            )
+            return [row.data for row in rows]
 
     @app.post("/api/missions", status_code=201)
     def create_mission(body: MissionRequest, actor=Depends(mission_write)):
@@ -1153,8 +1236,9 @@ def create_app(
             raise HTTPException(409, "Concurrent update; retry the same event")
 
     @app.get("/api/incidents")
-    def incidents(robot_id: str | None = None, mission_id: str | None = None,
+    def incidents(response: Response, robot_id: str | None = None, mission_id: str | None = None,
                   limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
+                  cursor: str | None = Query(None, max_length=512),
                   _actor=Depends(authorize_operational_read)):
         with sessions() as db:
             query = select(Incident)
@@ -1162,8 +1246,19 @@ def create_app(
                 query = query.where(Incident.robot_id == robot_id)
             if mission_id is not None:
                 query = query.where(Incident.mission_id == mission_id)
-            query = query.order_by(Incident.detected_at.desc(), Incident.id).limit(limit).offset(offset)
-            return [i.data for i in db.scalars(query)]
+            query = query.order_by(Incident.detected_at.desc(), Incident.id)
+            rows = paginated_rows(
+                db,
+                query,
+                feed="incidents",
+                timestamp_column=Incident.detected_at,
+                id_column=Incident.id,
+                limit=limit,
+                offset=offset,
+                cursor=cursor,
+                response=response,
+            )
+            return [row.data for row in rows]
 
     @app.get("/api/incidents/{incident_id}")
     def incident_detail(incident_id: str, _actor=Depends(authorize_operational_read)):
