@@ -90,7 +90,15 @@ The API loads one incident, its linked mission, the exact event identifiers reco
 
 The deterministic renderer is the baseline agent contract and requires no paid model. The optional model adapter renders the same evidence package through a closed JSON schema, rejects citations outside the authorized envelope, and falls back to the deterministic result on malformed output, unsupported claims, timeouts, or provider errors. The API remains responsible for record access and authorization. Technical documents use immutable `(id, version)` keys, an approval flag, a fault classification, and a SHA-256 content hash. Fresh databases seed the bundled Markdown revisions. Administrators may add a draft revision but cannot overwrite an existing one. A separate administrator action approves it for retrieval; creation and approval are audited independently. The direct service fallback keeps standalone evaluation independent of a running database.
 
-List endpoints for missions, events, incidents and robot telemetry support bounded limit/offset pagination with deterministic ordering. Event and incident lists filter by robot or mission; mission lists filter by robot and state. Immutable filter and ordering fields use normalized indexes. Offset pagination is a local-demo convenience; concurrently arriving data can shift page boundaries, so cursor pagination remains future work.
+List endpoints for missions, events, incidents and robot telemetry support bounded
+limit/offset pagination with deterministic ordering. They also accept an opaque
+`cursor` and return `X-Next-Cursor` when another page exists. Cursor traversal
+uses the immutable timestamp and identifier ordering keys, so newly arriving
+records cannot shift subsequent pages. A cursor is scoped to its feed and cannot
+be combined with a nonzero offset. Event and incident lists filter by robot or
+mission; mission lists filter by robot and state. Clients must retain the same
+filters while following a cursor. Immutable filter and ordering fields use
+normalized indexes; offset pagination remains available for compatibility.
 
 ## Customer dashboard
 
