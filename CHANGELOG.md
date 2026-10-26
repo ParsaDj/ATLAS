@@ -34,7 +34,7 @@ All notable changes to ATLAS are documented here. The project follows
   while retaining offset pagination for existing clients.
 - 257 Python tests, including PostgreSQL and SQLite behavior.
 - 120 deterministic investigation cases and a frozen 12-case live-model suite.
-- 50 generated state-machine traces and 10 browser workflows.
+- 50 generated state-machine traces and 11 browser workflows.
 - Docker Compose build, restart-recovery, and telemetry smoke verification in CI.
 
 ### Known limits

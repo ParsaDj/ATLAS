@@ -120,7 +120,7 @@ export function rememberCsrf(token: string | null) {
   else localStorage.removeItem("atlas_csrf");
 }
 
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function request(path: string, init: RequestInit = {}) {
   const csrf = localStorage.getItem("atlas_csrf");
   const response = await fetch(path, {
     ...init,
@@ -143,7 +143,23 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
     throw new Error(message);
   }
+  return response;
+}
+
+export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await request(path, init);
   return response.status === 204 ? (undefined as T) : response.json();
+}
+
+export async function apiPage<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<{ data: T; nextCursor: string | null }> {
+  const response = await request(path, init);
+  return {
+    data: await response.json(),
+    nextCursor: response.headers.get("X-Next-Cursor"),
+  };
 }
 
 export async function download(path: string) {
