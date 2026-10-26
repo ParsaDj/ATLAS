@@ -52,7 +52,7 @@ drift, or transient communication loss.
   expected confidence, and explicit limitations in the synthetic dataset.
 - 50 generated mission/event traces exercise retries, stale events, invalid
   transitions, cancellation, completion, and fault combinations.
-- 10 Playwright workflows run against the real API; a separate browser capture
+- 11 Playwright workflows run against the real API; a separate browser capture
   records the Robot 3 failure story and exports its evidence.
 - PostgreSQL 17 and SQLite run the shared workflow tests.
 - Docker Compose CI builds the real image, applies migrations, runs the failure

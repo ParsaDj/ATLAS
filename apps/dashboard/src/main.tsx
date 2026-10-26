@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useRef, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 import {
   api,
+  apiPage,
   download,
   type Robot,
   type Mission,
@@ -79,23 +80,69 @@ function useResource<T>(path: string | null, revision = 0) {
   return state.path === path ? state : { path };
 }
 
+function usePagedResource<T>(path: string, revision = 0, activation = "") {
+  const [state, setState] = useState<{
+    data?: T;
+    error?: string;
+    updated?: string;
+    nextCursor: string | null;
+    path: string;
+  }>({ path, nextCursor: null });
+  useEffect(() => {
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const controller = new AbortController();
+    setState({ path, nextCursor: null });
+    async function refresh() {
+      try {
+        const result = await apiPage<T>(path, { signal: controller.signal });
+        if (active)
+          setState({
+            data: result.data,
+            nextCursor: result.nextCursor,
+            updated: new Date().toISOString(),
+            path,
+          });
+      } catch (error) {
+        if (active)
+          setState((previous) => ({
+            ...previous,
+            error: error instanceof Error ? error.message : "Connection failed",
+            path,
+          }));
+      } finally {
+        if (active) timer = setTimeout(refresh, 5000);
+      }
+    }
+    void refresh();
+    return () => {
+      active = false;
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [path, revision, activation]);
+  return state.path === path ? state : { path, nextCursor: null };
+}
+
 function Pager({
   page,
-  count,
-  onChange,
+  hasNext,
+  onPrevious,
+  onNext,
 }: {
   page: number;
-  count: number;
-  onChange: (page: number) => void;
+  hasNext: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
 }) {
   return (
     <div className="pager">
       <span>Page {page + 1} · up to 10 records</span>
       <div>
-        <button disabled={page === 0} onClick={() => onChange(page - 1)}>
+        <button disabled={page === 0} onClick={onPrevious}>
           ← Previous
         </button>
-        <button disabled={count < 10} onClick={() => onChange(page + 1)}>
+        <button disabled={!hasNext} onClick={onNext}>
           Next →
         </button>
       </div>
@@ -199,18 +246,25 @@ function App({
 }) {
   const [view, setView] = useState("Overview");
   const [revision, setRevision] = useState(0);
-  const [page, setPage] = useState(0);
+  const [missionPage, setMissionPage] = useState(0);
+  const [missionCursors, setMissionCursors] = useState<(string | null)[]>([null]);
+  const [incidentPage, setIncidentPage] = useState(0);
+  const [incidentCursors, setIncidentCursors] = useState<(string | null)[]>([null]);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const fleet = useResource<Robot[]>("/api/robots", revision);
   const build = useResource<BuildInfo>("/version");
-  const missions = useResource<Mission[]>(
-    `/api/missions?limit=10&offset=${view === "Missions" ? page * 10 : 0}`,
+  const missionCursor = view === "Missions" ? missionCursors[missionPage] : null;
+  const incidentCursor = view === "Incidents" ? incidentCursors[incidentPage] : null;
+  const missions = usePagedResource<Mission[]>(
+    `/api/missions?limit=10${missionCursor ? `&cursor=${encodeURIComponent(missionCursor)}` : ""}`,
     revision,
+    view,
   );
-  const incidents = useResource<Incident[]>(
-    `/api/incidents?limit=10&offset=${view === "Incidents" ? page * 10 : 0}`,
+  const incidents = usePagedResource<Incident[]>(
+    `/api/incidents?limit=10${incidentCursor ? `&cursor=${encodeURIComponent(incidentCursor)}` : ""}`,
     revision,
+    view,
   );
   const robots = fleet.data ?? [];
   const errors = [fleet.error, missions.error, incidents.error].filter(Boolean);
@@ -220,7 +274,14 @@ function App({
   ).length;
   function navigate(next: string) {
     setView(next);
-    setPage(0);
+    if (next === "Missions") {
+      setMissionPage(0);
+      setMissionCursors([null]);
+    }
+    if (next === "Incidents") {
+      setIncidentPage(0);
+      setIncidentCursors([null]);
+    }
   }
   return (
     <div className="shell">
@@ -557,9 +618,17 @@ function App({
                 )}
               </div>
               <Pager
-                page={page}
-                count={missions.data?.length ?? 0}
-                onChange={setPage}
+                page={missionPage}
+                hasNext={Boolean(missions.nextCursor)}
+                onPrevious={() => setMissionPage((value) => value - 1)}
+                onNext={() => {
+                  if (!missions.nextCursor) return;
+                  setMissionCursors((history) => [
+                    ...history.slice(0, missionPage + 1),
+                    missions.nextCursor,
+                  ]);
+                  setMissionPage((value) => value + 1);
+                }}
               />
             </section>
           )}
@@ -620,9 +689,17 @@ function App({
                 )}
               </div>
               <Pager
-                page={page}
-                count={incidents.data?.length ?? 0}
-                onChange={setPage}
+                page={incidentPage}
+                hasNext={Boolean(incidents.nextCursor)}
+                onPrevious={() => setIncidentPage((value) => value - 1)}
+                onNext={() => {
+                  if (!incidents.nextCursor) return;
+                  setIncidentCursors((history) => [
+                    ...history.slice(0, incidentPage + 1),
+                    incidents.nextCursor,
+                  ]);
+                  setIncidentPage((value) => value + 1);
+                }}
               />
             </section>
           )}
