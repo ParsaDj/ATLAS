@@ -1,8 +1,10 @@
 """Local portfolio API. All operational data is synthetic."""
 import asyncio
 import base64
+import binascii
 import hashlib
 import hmac
+import json
 import os
 from pathlib import Path
 import logging
@@ -19,7 +21,7 @@ from time import monotonic
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, AwareDatetime, ConfigDict
-from sqlalchemy import Boolean, ForeignKey, Index, create_engine, String, Text, JSON, select, event
+from sqlalchemy import Boolean, ForeignKey, Index, and_, create_engine, String, Text, JSON, or_, select, event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
@@ -33,6 +35,33 @@ from apps.api.security import LoginRateLimiter, validate_deployment_config
 
 def now():
     return datetime.now(timezone.utc)
+
+
+def encode_cursor(feed: str, timestamp: str, record_id: str) -> str:
+    payload = json.dumps(
+        {"feed": feed, "timestamp": timestamp, "id": record_id},
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+    return base64.urlsafe_b64encode(payload).decode().rstrip("=")
+
+
+def decode_cursor(cursor: str, feed: str) -> tuple[str, str]:
+    try:
+        padding = "=" * (-len(cursor) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(cursor + padding))
+        if (
+            not isinstance(payload, dict)
+            or payload.get("feed") != feed
+            or not isinstance(payload.get("timestamp"), str)
+            or not isinstance(payload.get("id"), str)
+            or not payload["timestamp"]
+            or not payload["id"]
+        ):
+            raise ValueError
+        return payload["timestamp"], payload["id"]
+    except (ValueError, TypeError, UnicodeDecodeError, binascii.Error, json.JSONDecodeError):
+        raise HTTPException(422, "Invalid pagination cursor") from None
 
 
 class Base(DeclarativeBase):
@@ -233,6 +262,8 @@ def create_app(
     bootstrap_admin_password=None,
     bootstrap_admin_username=None,
     telemetry_api_key=None,
+    telemetry_previous_api_key=None,
+    robot_telemetry_api_keys=None,
     otlp_endpoint=None,
     request_log=None,
     security_clock=None,
@@ -256,6 +287,20 @@ def create_app(
         else os.getenv("ATLAS_SECURE_COOKIES") == "1"
     )
     bridge_key = telemetry_api_key or os.getenv("ATLAS_TELEMETRY_API_KEY")
+    previous_bridge_key = telemetry_previous_api_key or os.getenv(
+        "ATLAS_TELEMETRY_PREVIOUS_API_KEY"
+    )
+    configured_robot_keys = robot_telemetry_api_keys
+    if configured_robot_keys is None:
+        encoded_robot_keys = os.getenv("ATLAS_ROBOT_TELEMETRY_API_KEYS")
+        if encoded_robot_keys:
+            try:
+                configured_robot_keys = json.loads(encoded_robot_keys)
+            except json.JSONDecodeError as error:
+                raise ValueError(
+                    "ATLAS_ROBOT_TELEMETRY_API_KEYS must be valid JSON"
+                ) from error
+    configured_robot_keys = configured_robot_keys or {}
     configured_bootstrap_password = (
         bootstrap_admin_password or os.getenv("ATLAS_BOOTSTRAP_ADMIN_PASSWORD")
     )
@@ -266,6 +311,8 @@ def create_app(
         public_url=configured_public_url,
         secure_cookies=secure_session_cookies,
         telemetry_api_key=bridge_key,
+        telemetry_previous_api_key=previous_bridge_key,
+        robot_telemetry_api_keys=configured_robot_keys,
         bootstrap_admin_password=configured_bootstrap_password,
     )
     engine = create_engine(configured_database_url)
@@ -286,8 +333,42 @@ def create_app(
     tracing = tracer_provider(otlp_endpoint)
     login_limiter = LoginRateLimiter(time_source=security_clock or monotonic)
     dummy_password = password_hash(secrets.token_urlsafe(24))
-    if bridge_key and len(bridge_key) < 24:
-        raise ValueError("ATLAS_TELEMETRY_API_KEY must contain at least 24 characters")
+    bridge_keys = tuple(
+        key for key in (bridge_key, previous_bridge_key) if key is not None
+    )
+    if not isinstance(configured_robot_keys, dict):
+        raise ValueError("ATLAS_ROBOT_TELEMETRY_API_KEYS must be a JSON object")
+    robot_bridge_keys = {}
+    assigned_robot_keys = set()
+    for robot_id, keys in configured_robot_keys.items():
+        if not isinstance(robot_id, str) or not robot_id:
+            raise ValueError("Robot bridge credential IDs must be nonempty strings")
+        if isinstance(keys, str):
+            keys = [keys]
+        if not isinstance(keys, list) or not 1 <= len(keys) <= 2:
+            raise ValueError(
+                "Each robot bridge credential must contain one or two keys"
+            )
+        if any(not isinstance(key, str) or len(key) < 24 for key in keys):
+            raise ValueError("Robot bridge keys must contain at least 24 characters")
+        if len(set(keys)) != len(keys):
+            raise ValueError("A robot's active and previous keys must differ")
+        if assigned_robot_keys.intersection(keys):
+            raise ValueError("Robot bridge keys must be unique across robot identities")
+        assigned_robot_keys.update(keys)
+        robot_bridge_keys[robot_id] = tuple(keys)
+    if assigned_robot_keys.intersection(bridge_keys):
+        raise ValueError("Facility and robot bridge keys must be unique")
+    for name, key in (
+        ("ATLAS_TELEMETRY_API_KEY", bridge_key),
+        ("ATLAS_TELEMETRY_PREVIOUS_API_KEY", previous_bridge_key),
+    ):
+        if key is not None and len(key) < 24:
+            raise ValueError(f"{name} must contain at least 24 characters")
+    if previous_bridge_key is not None and previous_bridge_key == bridge_key:
+        raise ValueError(
+            "ATLAS_TELEMETRY_PREVIOUS_API_KEY must differ from the active key"
+        )
     selected_investigator = investigator_mode or os.getenv(
         "ATLAS_INVESTIGATOR_MODE", "deterministic"
     )
@@ -301,13 +382,42 @@ def create_app(
             timeout=float(os.getenv("ATLAS_LLM_TIMEOUT_SECONDS", "30")),
         )
 
+    def bridge_identity(candidate: str | None):
+        if candidate is None:
+            return None
+        candidate_bytes = candidate.encode()
+        facility_match = False
+        for configured_key in bridge_keys:
+            facility_match |= hmac.compare_digest(
+                candidate_bytes, configured_key.encode()
+            )
+        robot_matches = []
+        for robot_id, keys in robot_bridge_keys.items():
+            matched = False
+            for configured_key in keys:
+                matched |= hmac.compare_digest(
+                    candidate_bytes, configured_key.encode()
+                )
+            if matched:
+                robot_matches.append(robot_id)
+        if facility_match:
+            return {"id": "robot-bridge", "role": "bridge", "robot_id": None}
+        if len(robot_matches) == 1:
+            robot_id = robot_matches[0]
+            return {
+                "id": f"robot-bridge:{robot_id}",
+                "role": "bridge",
+                "robot_id": robot_id,
+            }
+        return None
+
     def authorize_bridge(x_atlas_bridge_key: str | None = Header(default=None)):
-        if not bridge_key:
+        if not bridge_keys and not robot_bridge_keys:
             raise HTTPException(503, "Telemetry ingestion is not configured")
-        if not x_atlas_bridge_key or not hmac.compare_digest(
-            x_atlas_bridge_key.encode(), bridge_key.encode()
-        ):
+        identity = bridge_identity(x_atlas_bridge_key)
+        if identity is None:
             raise HTTPException(401, "Invalid bridge credentials")
+        return identity
 
     def authorize_operational_read(
         request: Request,
@@ -316,11 +426,15 @@ def create_app(
         """Allow a human session or the machine bridge identity to read operations."""
         if request.cookies.get("atlas_session"):
             return actor_from_request(request)
-        if bridge_key and x_atlas_bridge_key and hmac.compare_digest(
-            x_atlas_bridge_key.encode(), bridge_key.encode()
-        ):
-            return {"id": "robot-bridge", "username": "robot-bridge", "role": "bridge"}
+        identity = bridge_identity(x_atlas_bridge_key)
+        if identity is not None:
+            return {**identity, "username": identity["id"]}
         raise HTTPException(401, "Authentication required")
+
+    def require_robot_scope(actor, robot_id):
+        scoped_robot = actor.get("robot_id") if actor["role"] == "bridge" else None
+        if scoped_robot is not None and scoped_robot != robot_id:
+            raise HTTPException(403, "Bridge credential is scoped to another robot")
 
     def seed_robots():
         with sessions.begin() as db:
@@ -971,46 +1085,104 @@ def create_app(
         )
 
     @app.get("/api/robots")
-    def robots(_actor=Depends(authorize_operational_read)):
+    def robots(actor=Depends(authorize_operational_read)):
         with sessions() as db:
-            return [r.data for r in db.scalars(select(Robot).order_by(Robot.id))]
+            query = select(Robot).order_by(Robot.id)
+            if actor["role"] == "bridge" and actor.get("robot_id") is not None:
+                query = query.where(Robot.id == actor["robot_id"])
+            return [r.data for r in db.scalars(query)]
 
     @app.get("/api/robots/{robot_id}")
-    def robot(robot_id: str, _actor=Depends(authorize_operational_read)):
+    def robot(robot_id: str, actor=Depends(authorize_operational_read)):
+        require_robot_scope(actor, robot_id)
         return get_record(Robot, robot_id)
 
-    def event_records(db, robot_id=None, mission_id=None, limit=100, offset=0):
+    def paginated_rows(
+        db,
+        query,
+        *,
+        feed,
+        timestamp_column,
+        id_column,
+        limit,
+        offset,
+        cursor,
+        response,
+    ):
+        if cursor is not None:
+            if offset:
+                raise HTTPException(422, "Cursor and offset cannot be combined")
+            timestamp, record_id = decode_cursor(cursor, feed)
+            query = query.where(
+                or_(
+                    timestamp_column < timestamp,
+                    and_(timestamp_column == timestamp, id_column > record_id),
+                )
+            )
+        rows = list(db.scalars(query.limit(limit + 1).offset(offset)))
+        if len(rows) > limit:
+            last = rows[limit - 1]
+            response.headers["X-Next-Cursor"] = encode_cursor(
+                feed, getattr(last, timestamp_column.key), getattr(last, id_column.key)
+            )
+        return rows[:limit]
+
+    def event_records(db, response, robot_id=None, mission_id=None, limit=100, offset=0, cursor=None):
         query = select(Telemetry)
         if robot_id is not None:
             query = query.where(Telemetry.robot_id == robot_id)
         if mission_id is not None:
             query = query.where(Telemetry.mission_id == mission_id)
-        query = query.order_by(Telemetry.occurred_at.desc(), Telemetry.id).limit(limit).offset(offset)
-        return [r.data for r in db.scalars(query)]
+        query = query.order_by(Telemetry.occurred_at.desc(), Telemetry.id)
+        rows = paginated_rows(
+            db,
+            query,
+            feed="events",
+            timestamp_column=Telemetry.occurred_at,
+            id_column=Telemetry.id,
+            limit=limit,
+            offset=offset,
+            cursor=cursor,
+            response=response,
+        )
+        return [row.data for row in rows]
 
     @app.get("/api/robots/{robot_id}/telemetry")
-    def telemetry(robot_id: str, limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0), _actor=Depends(authorize_operational_read)):
+    def telemetry(robot_id: str, response: Response, limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0), cursor: str | None = Query(None, max_length=512), actor=Depends(authorize_operational_read)):
+        require_robot_scope(actor, robot_id)
         get_record(Robot, robot_id)
         with sessions() as db:
-            return event_records(db, robot_id=robot_id, limit=limit, offset=offset)
+            return event_records(db, response, robot_id=robot_id, limit=limit, offset=offset, cursor=cursor)
 
     @app.get("/api/events")
-    def events(robot_id: str | None = None, mission_id: str | None = None,
+    def events(response: Response, robot_id: str | None = None, mission_id: str | None = None,
                limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
-               _actor=Depends(authorize_operational_read)):
+               cursor: str | None = Query(None, max_length=512),
+               actor=Depends(authorize_operational_read)):
+        if actor["role"] == "bridge" and actor.get("robot_id") is not None:
+            if robot_id is not None:
+                require_robot_scope(actor, robot_id)
+            robot_id = actor["robot_id"]
         with sessions() as db:
-            return event_records(db, robot_id, mission_id, limit, offset)
+            return event_records(db, response, robot_id, mission_id, limit, offset, cursor)
 
     @app.get("/api/events/{event_id}")
-    def event_detail(event_id: str, _actor=Depends(authorize_operational_read)):
-        return get_record(Telemetry, event_id)
+    def event_detail(event_id: str, actor=Depends(authorize_operational_read)):
+        record = get_record(Telemetry, event_id)
+        require_robot_scope(actor, record["robot_id"])
+        return record
 
     @app.get("/api/missions")
-    def missions(robot_id: str | None = None,
+    def missions(response: Response, robot_id: str | None = None,
                  status: Literal["pending", "running", "completed", "failed", "cancelled"] | None = None,
                  source_incident_id: str | None = None,
                  limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
-                 _actor=Depends(authorize_operational_read)):
+                 cursor: str | None = Query(None, max_length=512),
+                 actor=Depends(authorize_operational_read)):
+        if actor["role"] == "bridge" and actor.get("robot_id") is not None:
+            if robot_id is not None:
+                require_robot_scope(actor, robot_id)
+            robot_id = actor["robot_id"]
         with sessions() as db:
             query = select(Mission)
             if robot_id is not None:
@@ -1021,8 +1193,19 @@ def create_app(
                 query = query.where(
                     Mission.source_incident_id == source_incident_id
                 )
-            query = query.order_by(Mission.created_at.desc(), Mission.id).limit(limit).offset(offset)
-            return [m.data for m in db.scalars(query)]
+            query = query.order_by(Mission.created_at.desc(), Mission.id)
+            rows = paginated_rows(
+                db,
+                query,
+                feed="missions",
+                timestamp_column=Mission.created_at,
+                id_column=Mission.id,
+                limit=limit,
+                offset=offset,
+                cursor=cursor,
+                response=response,
+            )
+            return [row.data for row in rows]
 
     @app.post("/api/missions", status_code=201)
     def create_mission(body: MissionRequest, actor=Depends(mission_write)):
@@ -1036,8 +1219,10 @@ def create_app(
             return data
 
     @app.get("/api/missions/{mission_id}")
-    def mission(mission_id: str, _actor=Depends(authorize_operational_read)):
-        return get_record(Mission, mission_id)
+    def mission(mission_id: str, actor=Depends(authorize_operational_read)):
+        record = get_record(Mission, mission_id)
+        require_robot_scope(actor, record["robot_id"])
+        return record
 
     @app.post("/api/missions/{mission_id}/approve")
     def approve(mission_id: str, actor=Depends(mission_write)):
@@ -1077,7 +1262,8 @@ def create_app(
             return m.data
 
     @app.post("/api/telemetry")
-    def ingest(body: Sample, _bridge=Depends(authorize_bridge)):
+    def ingest(body: Sample, bridge=Depends(authorize_bridge)):
+        require_robot_scope(bridge, body.robot_id)
         timestamp = clock()
         if body.occurred_at > timestamp + timedelta(seconds=30):
             raise HTTPException(422, "Event timestamp is too far in the future")
@@ -1153,21 +1339,39 @@ def create_app(
             raise HTTPException(409, "Concurrent update; retry the same event")
 
     @app.get("/api/incidents")
-    def incidents(robot_id: str | None = None, mission_id: str | None = None,
+    def incidents(response: Response, robot_id: str | None = None, mission_id: str | None = None,
                   limit: int = Query(100, ge=1, le=1000), offset: int = Query(0, ge=0),
-                  _actor=Depends(authorize_operational_read)):
+                  cursor: str | None = Query(None, max_length=512),
+                  actor=Depends(authorize_operational_read)):
+        if actor["role"] == "bridge" and actor.get("robot_id") is not None:
+            if robot_id is not None:
+                require_robot_scope(actor, robot_id)
+            robot_id = actor["robot_id"]
         with sessions() as db:
             query = select(Incident)
             if robot_id is not None:
                 query = query.where(Incident.robot_id == robot_id)
             if mission_id is not None:
                 query = query.where(Incident.mission_id == mission_id)
-            query = query.order_by(Incident.detected_at.desc(), Incident.id).limit(limit).offset(offset)
-            return [i.data for i in db.scalars(query)]
+            query = query.order_by(Incident.detected_at.desc(), Incident.id)
+            rows = paginated_rows(
+                db,
+                query,
+                feed="incidents",
+                timestamp_column=Incident.detected_at,
+                id_column=Incident.id,
+                limit=limit,
+                offset=offset,
+                cursor=cursor,
+                response=response,
+            )
+            return [row.data for row in rows]
 
     @app.get("/api/incidents/{incident_id}")
-    def incident_detail(incident_id: str, _actor=Depends(authorize_operational_read)):
-        return get_record(Incident, incident_id)
+    def incident_detail(incident_id: str, actor=Depends(authorize_operational_read)):
+        record = get_record(Incident, incident_id)
+        require_robot_scope(actor, record["robot_id"])
+        return record
 
     @app.post("/api/incidents/{incident_id}/investigate")
     def investigate_incident(incident_id: str, actor=Depends(any_write)):

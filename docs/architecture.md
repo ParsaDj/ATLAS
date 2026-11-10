@@ -49,7 +49,7 @@ HTTPS responses include one-year HSTS. The interactive API documentation permits
 only its required documentation CDN resources; application routes use same-origin
 scripts and resources.
 
-Mission creation, approval, cancellation, incident investigation, user creation, login, and logout write append-only audit records. Domain mutations and their audit records share the same database transaction. Audit entries contain actor, action, resource, timestamp, and bounded operational details; they never contain passwords, session tokens, or CSRF tokens. Robot telemetry uses a separate machine credential in the `X-ATLAS-Bridge-Key` header and never reuses a human session or CSRF token. The API fails closed when the bridge key is not configured. The local demo uses one facility-wide key; per-robot credentials and rotation are required before a remote or physical deployment.
+Mission creation, approval, cancellation, incident investigation, user creation, login, and logout write append-only audit records. Domain mutations and their audit records share the same database transaction. Audit entries contain actor, action, resource, timestamp, and bounded operational details; they never contain passwords, session tokens, or CSRF tokens. Robot telemetry uses a separate machine credential in the `X-ATLAS-Bridge-Key` header and never reuses a human session or CSRF token. The API fails closed when no bridge credential is configured. A facility identity supports an optional previous key for a bounded rotation window. Production deployments can instead provide one or two keys per robot; that identity can ingest telemetry and read robots, missions, events, telemetry, and incidents only for its assigned robot. Keys must be unique across identities. The local demo retains one facility-wide identity for reproducibility.
 
 Maintenance tickets transition `draft → approved → in_progress → resolved`. Operators and administrators create and approve tickets. Technicians can start and resolve only work assigned to their account; administrators may act as an operational override. Resolving a ticket and its linked incident occurs in one transaction. Every transition is audited with the human actor. One incident can have only one maintenance ticket in this version.
 
@@ -90,13 +90,26 @@ The API loads one incident, its linked mission, the exact event identifiers reco
 
 The deterministic renderer is the baseline agent contract and requires no paid model. The optional model adapter renders the same evidence package through a closed JSON schema, rejects citations outside the authorized envelope, and falls back to the deterministic result on malformed output, unsupported claims, timeouts, or provider errors. The API remains responsible for record access and authorization. Technical documents use immutable `(id, version)` keys, an approval flag, a fault classification, and a SHA-256 content hash. Fresh databases seed the bundled Markdown revisions. Administrators may add a draft revision but cannot overwrite an existing one. A separate administrator action approves it for retrieval; creation and approval are audited independently. The direct service fallback keeps standalone evaluation independent of a running database.
 
-List endpoints for missions, events, incidents and robot telemetry support bounded limit/offset pagination with deterministic ordering. Event and incident lists filter by robot or mission; mission lists filter by robot and state. Immutable filter and ordering fields use normalized indexes. Offset pagination is a local-demo convenience; concurrently arriving data can shift page boundaries, so cursor pagination remains future work.
+List endpoints for missions, events, incidents and robot telemetry support bounded
+limit/offset pagination with deterministic ordering. They also accept an opaque
+`cursor` and return `X-Next-Cursor` when another page exists. Cursor traversal
+uses the immutable timestamp and identifier ordering keys, so newly arriving
+records cannot shift subsequent pages. A cursor is scoped to its feed and cannot
+be combined with a nonzero offset. Event and incident lists filter by robot or
+mission; mission lists filter by robot and state. Clients must retain the same
+filters while following a cursor. Immutable filter and ordering fields use
+normalized indexes; offset pagination remains available for compatibility.
 
 ## Customer dashboard
 
 React/TypeScript lives in `apps/dashboard`. Vite builds static assets; FastAPI mounts them at `/` when the build directory exists, after registering API routes. The Dockerfile builds the frontend in a Node stage and copies only its compiled assets into the Python runtime. During development Vite proxies API requests to port 8000.
 
 The UI polls every five seconds with non-overlapping requests per resource and aborts requests when a view changes. Failed refreshes retain the last successful data and explicitly mark it stale. Native modal dialogs keep keyboard focus inside the selected workflow. Creating a mission saves a pending proposal; a separate approval action begins execution. Mutations are disabled while pending and the backend validates all state transitions.
+
+Mission and incident history pages retain the opaque cursor for each visited
+page. Moving forward follows `X-Next-Cursor`; moving backward reuses the earlier
+cursor. Opening a history view resets traversal to the newest records and
+refreshes immediately, while polling the current page cannot shift its boundary.
 
 Incident details retrieve referenced evidence separately from the paginated event timeline. Missing evidence is an error state, never replaced with an AI explanation. The coordinate plot uses last reported positions; it is not a navigation map.
 
