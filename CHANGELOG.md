@@ -5,6 +5,10 @@ All notable changes to ATLAS are documented here. The project follows
 
 ## [Unreleased]
 
+- Refresh the reproducible portfolio capture to demonstrate actionable
+  citations and generate a clearer 1280-pixel, 12-fps README preview.
+- Make `pnpm demo:capture` build the dashboard first so it works from a clean
+  checkout without an undocumented prerequisite.
 - Make investigation citations actionable: mission citations open the linked
   mission, event citations focus exact telemetry, and document citations load
   and hash-verify the cited revision in place.
