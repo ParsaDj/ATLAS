@@ -11,7 +11,8 @@ ATLAS supports a fictional single facility, one customer, and five synthetic ins
 - Persistent telemetry and incident APIs with retry deduplication and filtered, paginated evidence history.
 - Deterministic read-only incident investigation with approved guide retrieval, citations, and uncertainty.
 - A reproducible 120-scenario investigation evaluation dataset.
-- Immutable, approved technical-document revisions with stable version and content-hash citations.
+- Immutable, approved technical-document revisions with stable version and
+  content-hash citations plus audited retirement of obsolete guidance.
 - Versioned Alembic migrations for fresh and legacy SQLite/PostgreSQL databases.
 - Local role-based authentication, CSRF protection, user administration, and audit history.
 - Local SQLite setup, PostgreSQL Compose configuration, and automated workflow tests.
@@ -31,7 +32,7 @@ Budget: 5–7 hours/week, no hardware required. Milestones 1–3 form the MVP. U
 
 ## Dashboard milestone delivered ahead of the target schedule
 
-React/TypeScript overview, five-robot fleet cards, last-reported position plot, mission history and proposal form, explicit approvals/cancellations, incident history, evidence details, event timelines, incident investigation, and a versioned technical-document library are implemented. Administrators draft and separately approve guidance; every authenticated role can inspect approved revisions. Desktop and mobile workflows use the live API. Eleven Playwright tests verify key customer workflows.
+React/TypeScript overview, five-robot fleet cards, last-reported position plot, mission history and proposal form, explicit approvals/cancellations, incident history, evidence details, event timelines, incident investigation, and a versioned technical-document library are implemented. Administrators draft, separately approve, and explicitly retire guidance; every authenticated role can inspect active approved revisions while retired history remains administrator-only. Desktop and mobile workflows use the live API. Eleven Playwright tests verify key customer workflows.
 
 ## Mission execution connected
 
@@ -39,4 +40,4 @@ The operations worker now executes dashboard-approved missions, reports waypoint
 
 ## Investigation milestone delivered
 
-The first investigation service uses a deterministic evidence engine so the feature remains free and reproducible. It receives only API-authorized records, retrieves approved document revisions from the application database, and returns cited findings with confidence, limitations, next steps, and a read-only tool trace. Revisions are immutable and citations include the exact version and SHA-256 content hash. Bundled Markdown revisions provide a local evaluation fallback. The 120-case dataset covers low battery, sensor failure, and heartbeat loss. Unknown faults and missing records produce insufficient-evidence results. An optional model renderer implements the same evidence contract with strict structured output, citation allowlisting, and deterministic fallback. A frozen live-model evaluation runner records exact model, prompt, dataset, and evidence-envelope provenance.
+The first investigation service uses a deterministic evidence engine so the feature remains free and reproducible. It receives only API-authorized records, retrieves approved active document revisions from the application database, and returns cited findings with confidence, limitations, next steps, and a read-only tool trace. Revisions are immutable and citations include the exact version and SHA-256 content hash. Administrators may retire an approved revision with a required reason; the action is audited, the revision remains inspectable, and new investigations exclude it. Bundled Markdown revisions provide a local evaluation fallback. The 120-case dataset covers low battery, sensor failure, and heartbeat loss. Unknown faults and missing records produce insufficient-evidence results. An optional model renderer implements the same evidence contract with strict structured output, citation allowlisting, and deterministic fallback. A frozen live-model evaluation runner records exact model, prompt, dataset, and evidence-envelope provenance.

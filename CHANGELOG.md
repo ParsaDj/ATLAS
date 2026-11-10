@@ -5,6 +5,8 @@ All notable changes to ATLAS are documented here. The project follows
 
 ## [Unreleased]
 
+- Add audited technical-document retirement so obsolete approved guidance is
+  preserved for review but excluded from future incident investigations.
 - Validate the ROS 2 Jazzy/Nav2 adapter with one Gazebo Harmonic robot.
 - Publish results from the frozen benchmark against a named live model.
 - Record the narrated two-minute portfolio walkthrough.
@@ -36,7 +38,7 @@ All notable changes to ATLAS are documented here. The project follows
   credential overlap with production configuration guards.
 - Optional per-robot bridge identities that scope telemetry ingestion, mission
   polling, robot state, event history, and incident reads to one robot.
-- 265 Python tests, including PostgreSQL and SQLite behavior.
+- 268 Python tests, including PostgreSQL and SQLite behavior.
 - 120 deterministic investigation cases and a frozen 12-case live-model suite.
 - 50 generated state-machine traces and 11 browser workflows.
 - Docker Compose build, restart-recovery, and telemetry smoke verification in CI.

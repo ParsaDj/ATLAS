@@ -112,6 +112,8 @@ export type TechnicalDocument = {
   sha256: string;
   approved: boolean;
   created_at: string;
+  retired_at: string | null;
+  retired_by: string | null;
 };
 export type LoginResult = { user: User; csrf_token: string };
 

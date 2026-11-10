@@ -86,6 +86,17 @@ button.primary {
 button.primary:hover {
   background: #1d5947;
 }
+
+button.danger {
+  border-color: #d7a27c;
+  background: #fff7f1;
+  color: #9a4f2d;
+}
+
+button.danger:hover {
+  border-color: #bd7954;
+  background: #fbeade;
+}
 .shell {
   display: flex;
   min-height: 100vh;
@@ -676,7 +687,8 @@ main {
 .badge.attention,
 .badge.failed,
 .badge.disconnected,
-.badge.open {
+.badge.open,
+.badge.retired {
   background: #fbf0e6;
   color: #ae7443;
 }

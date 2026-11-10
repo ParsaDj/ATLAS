@@ -270,6 +270,17 @@ test("administrator drafts and approves technical guidance", async ({ page }) =>
     page.getByText("DOC-SENSOR-UI-001 version 1.0 approved."),
   ).toBeVisible();
   await expect(revision.getByText("approved", { exact: true })).toBeVisible();
+
+  page.once("dialog", (dialog) =>
+    dialog.accept("Superseded by reviewed operational guidance."),
+  );
+  await revision.getByRole("button", { name: "Retire revision" }).click();
+  await expect(
+    page.getByText(
+      "DOC-SENSOR-UI-001 version 1.0 retired from future investigations.",
+    ),
+  ).toBeVisible();
+  await expect(revision.getByText("retired", { exact: true })).toBeVisible();
 });
 
 test("approved maintenance ticket is completed by its assigned technician", async ({

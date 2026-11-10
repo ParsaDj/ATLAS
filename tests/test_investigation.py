@@ -173,3 +173,114 @@ def test_new_approved_revision_is_used_without_mutating_prior_revision(system):
         and row["details"]["version"] == "2.0"
         for row in logs
     )
+
+
+def test_retired_revision_is_preserved_but_excluded_from_new_investigations(system):
+    client, _, _ = system
+    body = {
+        "id": "DOC-BATTERY-001",
+        "version": "2.0",
+        "fault": "low_battery",
+        "title": "Low battery response version two",
+        "content": "A revision that will be retired after an operational review.",
+        "next_step": "Use the temporary version two verification procedure.",
+    }
+    assert client.post("/api/documents", json=body).status_code == 201
+    assert client.post(
+        "/api/documents/DOC-BATTERY-001/versions/2.0/approve"
+    ).status_code == 200
+
+    _, _, _, first_incident = create_incident(system, "robot-1", battery=10)
+    first = client.post(
+        f"/api/incidents/{first_incident['id']}/investigate"
+    ).json()
+    first_document = next(
+        item for item in first["citations"] if item["type"] == "document"
+    )
+    assert first_document["version"] == "2.0"
+
+    retired = client.post(
+        "/api/documents/DOC-BATTERY-001/versions/2.0/retire",
+        json={"reason": "Superseded after the verification procedure changed."},
+    )
+    assert retired.status_code == 200
+    assert retired.json()["retired_at"] is not None
+    assert retired.json()["retired_by"] is not None
+    assert client.post(
+        "/api/documents/DOC-BATTERY-001/versions/2.0/retire",
+        json={"reason": "Duplicate retirement attempt."},
+    ).status_code == 409
+
+    active = client.get("/api/documents?fault=low_battery").json()
+    assert [document["version"] for document in active] == ["1.0"]
+    retired_revisions = client.get(
+        "/api/documents?fault=low_battery&approved=true&retired=true"
+    ).json()
+    assert [document["version"] for document in retired_revisions] == ["2.0"]
+
+    _, _, _, second_incident = create_incident(system, "robot-2", battery=9)
+    second = client.post(
+        f"/api/incidents/{second_incident['id']}/investigate"
+    ).json()
+    second_document = next(
+        item for item in second["citations"] if item["type"] == "document"
+    )
+    assert second_document["version"] == "1.0"
+
+    logs = client.get("/api/audit-logs").json()
+    retirement = next(
+        row for row in logs if row["action"] == "document.retire_revision"
+    )
+    assert retirement["details"] == {
+        "version": "2.0",
+        "sha256": retired.json()["sha256"],
+        "reason": "Superseded after the verification procedure changed.",
+    }
+
+
+def test_draft_document_cannot_be_retired(system):
+    client, _, _ = system
+    body = {
+        "id": "DOC-SENSOR-DRAFT",
+        "version": "1.0",
+        "fault": "sensor_failure",
+        "title": "Unreviewed sensor procedure",
+        "content": "This draft has not passed the required operational review.",
+        "next_step": "Do not use this draft in an investigation.",
+    }
+    assert client.post("/api/documents", json=body).status_code == 201
+    response = client.post(
+        "/api/documents/DOC-SENSOR-DRAFT/versions/1.0/retire",
+        json={"reason": "Drafts should not enter retirement workflow."},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Only approved revisions can be retired"
+
+
+def test_only_administrators_can_view_or_retire_retired_guidance(system):
+    client, _, _ = system
+    created = client.post(
+        "/api/users",
+        json={
+            "username": "knowledge-operator",
+            "password": "knowledge-operator-password",
+            "role": "operator",
+        },
+    )
+    assert created.status_code == 201
+    client.cookies.clear()
+    login = client.post(
+        "/api/auth/login",
+        json={
+            "username": "knowledge-operator",
+            "password": "knowledge-operator-password",
+        },
+    )
+    assert login.status_code == 200
+    client.headers["X-CSRF-Token"] = login.json()["csrf_token"]
+
+    assert client.get("/api/documents?retired=true").status_code == 403
+    assert client.post(
+        "/api/documents/DOC-BATTERY-001/versions/1.0/retire",
+        json={"reason": "Operators must not change approved guidance."},
+    ).status_code == 403

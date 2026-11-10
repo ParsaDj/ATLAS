@@ -765,6 +765,12 @@ function KnowledgeLibrary({
     role === "administrator" ? "/api/documents?approved=false" : null,
     revision,
   );
+  const retired = useResource<TechnicalDocument[]>(
+    role === "administrator"
+      ? "/api/documents?approved=true&retired=true"
+      : null,
+    revision,
+  );
   const [form, setForm] = useState({
     id: "",
     version: "1.0",
@@ -776,7 +782,11 @@ function KnowledgeLibrary({
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const documents = [...(drafts.data ?? []), ...(approved.data ?? [])];
+  const documents = [
+    ...(drafts.data ?? []),
+    ...(approved.data ?? []),
+    ...(retired.data ?? []),
+  ];
 
   async function createRevision(event: FormEvent) {
     event.preventDefault();
@@ -815,6 +825,30 @@ function KnowledgeLibrary({
         { method: "POST" },
       );
       setMessage(`${document.id} version ${document.version} approved.`);
+      onChange();
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function retireRevision(document: TechnicalDocument) {
+    const reason = window.prompt(
+      `Why should ${document.id} version ${document.version} be retired?`,
+    )?.trim();
+    if (!reason) return;
+    setBusy(`${document.id}:${document.version}:retire`);
+    setError("");
+    setMessage("");
+    try {
+      await api(
+        `/api/documents/${encodeURIComponent(document.id)}/versions/${encodeURIComponent(document.version)}/retire`,
+        { method: "POST", body: JSON.stringify({ reason }) },
+      );
+      setMessage(
+        `${document.id} version ${document.version} retired from future investigations.`,
+      );
       onChange();
     } catch (reason) {
       setError((reason as Error).message);
@@ -919,8 +953,11 @@ function KnowledgeLibrary({
         />
         {error && <div className="error" role="alert">{error}</div>}
         {message && <div className="success" role="status">{message}</div>}
-        {!approved.data || (role === "administrator" && !drafts.data) ? (
-          <Empty text={approved.error ?? drafts.error ?? "Loading document revisions…"} />
+        {!approved.data ||
+        (role === "administrator" && (!drafts.data || !retired.data)) ? (
+          <Empty
+            text={approved.error ?? drafts.error ?? retired.error ?? "Loading document revisions…"}
+          />
         ) : documents.length === 0 ? (
           <Empty text="No technical documents are available." />
         ) : (
@@ -932,13 +969,22 @@ function KnowledgeLibrary({
                     <code>{document.id}@{document.version}</code>
                     <h3>{document.title}</h3>
                   </div>
-                  <Badge status={document.approved ? "approved" : "draft"} />
+                  <Badge
+                    status={document.retired_at
+                      ? "retired"
+                      : document.approved
+                        ? "approved"
+                        : "draft"}
+                  />
                 </div>
                 <p>{document.content}</p>
                 <dl>
                   <dt>Fault</dt><dd>{label(document.fault)}</dd>
                   <dt>Next step</dt><dd>{document.next_step}</dd>
                   <dt>SHA-256</dt><dd><code>{document.sha256}</code></dd>
+                  {document.retired_at && (
+                    <><dt>Retired</dt><dd>{time(document.retired_at)}</dd></>
+                  )}
                 </dl>
                 {!document.approved && role === "administrator" && (
                   <button
@@ -949,6 +995,17 @@ function KnowledgeLibrary({
                     {busy === `${document.id}:${document.version}`
                       ? "Approving…"
                       : "Approve revision"}
+                  </button>
+                )}
+                {document.approved && !document.retired_at && role === "administrator" && (
+                  <button
+                    className="danger"
+                    disabled={busy === `${document.id}:${document.version}:retire`}
+                    onClick={() => void retireRevision(document)}
+                  >
+                    {busy === `${document.id}:${document.version}:retire`
+                      ? "Retiring…"
+                      : "Retire revision"}
                   </button>
                 )}
               </article>
