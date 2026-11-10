@@ -2,7 +2,10 @@ from datetime import datetime, timezone
 
 import httpx
 import pytest
+from fastapi.testclient import TestClient
 
+from apps.api.main import create_app
+from apps.api.migrations import upgrade_database
 from robotics.atlas_bridge import (
     AtlasBridge,
     MissionCoordinator,
@@ -13,6 +16,7 @@ from robotics.atlas_bridge import (
 
 
 BRIDGE_KEY = "atlas-test-bridge-key-1234567890"
+PREVIOUS_BRIDGE_KEY = "atlas-previous-bridge-key-1234567890"
 
 
 def observation(event_id="ros:robot-1:1"):
@@ -33,6 +37,52 @@ def test_telemetry_requires_machine_credentials(system):
     assert client.post("/api/telemetry", json=body).status_code == 401
     client.headers["X-ATLAS-Bridge-Key"] = "wrong-key"
     assert client.post("/api/telemetry", json=body).status_code == 401
+
+
+def test_bridge_key_rotation_accepts_active_and_previous_keys(database_url):
+    upgrade_database(database_url)
+    app = create_app(
+        database_url,
+        monitor=False,
+        bootstrap_admin_password="atlas-test-admin-password",
+        telemetry_api_key=BRIDGE_KEY,
+        telemetry_previous_api_key=PREVIOUS_BRIDGE_KEY,
+    )
+    with TestClient(app) as client:
+        body = observation("rotation-active").payload()
+        active = client.post(
+            "/api/telemetry",
+            json=body,
+            headers={"X-ATLAS-Bridge-Key": BRIDGE_KEY},
+        )
+        assert active.status_code == 200
+
+        previous_body = observation("rotation-previous").payload()
+        previous = client.post(
+            "/api/telemetry",
+            json=previous_body,
+            headers={"X-ATLAS-Bridge-Key": PREVIOUS_BRIDGE_KEY},
+        )
+        assert previous.status_code == 200
+
+        rejected = client.post(
+            "/api/telemetry",
+            json=observation("rotation-rejected").payload(),
+            headers={"X-ATLAS-Bridge-Key": "unknown-bridge-key-1234567890"},
+        )
+        assert rejected.status_code == 401
+
+
+def test_bridge_rotation_rejects_duplicate_keys(database_url):
+    upgrade_database(database_url)
+    with pytest.raises(ValueError, match="must differ"):
+        create_app(
+            database_url,
+            monitor=False,
+            bootstrap_admin_password="atlas-test-admin-password",
+            telemetry_api_key=BRIDGE_KEY,
+            telemetry_previous_api_key=BRIDGE_KEY,
+        )
 
 
 def test_bridge_delivers_and_acknowledges_event(system, tmp_path):
