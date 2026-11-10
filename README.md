@@ -168,9 +168,10 @@ not just endpoint coverage:
 - cancellation racing telemetry cannot resurrect a mission;
 - simultaneous sensor and battery faults commit both incidents;
 - an interrupted bridge retains events and replays them without duplication;
+- active and retiring bridge credentials overlap during a bounded rotation;
 - missing cited evidence forces an insufficient investigation.
 
-The current verification includes **257 Python tests**, **120 reproducible
+The current verification includes **262 Python tests**, **120 reproducible
 investigation cases**, **50 generated state-machine traces**, **11 browser
 workflows**, and **1 isolated portfolio capture**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real
