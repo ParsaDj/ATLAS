@@ -75,14 +75,30 @@ test("capture the Robot 3 evidence-grounded failure story", async ({
   await expect(investigation).toContainText(
     "supports a sensor-path mission failure",
   );
-  await expect(investigation.getByText(/event:portfolio-demo:/)).toBeVisible();
-  await expect(investigation.getByText(/document:DOC-SENSOR-001/)).toBeVisible();
-  await page.waitForTimeout(1500);
+  const documentCitation = investigation.getByRole("button", {
+    name: /Open document evidence DOC-SENSOR-001/,
+  });
+  const eventCitation = investigation.getByRole("button", {
+    name: /Open event evidence portfolio-demo:/,
+  });
+  await expect(documentCitation).toBeVisible();
+  await expect(eventCitation).toBeVisible();
+  await documentCitation.click();
+  const citedDocument = investigation.getByRole("region", {
+    name: "Cited technical document",
+  });
+  await expect(citedDocument).toContainText("Inspection sensor failure");
+  await expect(citedDocument.getByText("verified", { exact: true })).toBeVisible();
+  await citedDocument.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(1250);
 
   await page.screenshot({
     path: resolve(artifacts, "atlas-incident-investigation.png"),
     fullPage: false,
   });
+  await eventCitation.click();
+  await expect(drawer.locator(".evidence:focus")).toContainText(eventId);
+  await page.waitForTimeout(1250);
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     drawer.getByRole("button", { name: "Download incident report" }).click(),
@@ -98,7 +114,7 @@ test("capture the Robot 3 evidence-grounded failure story", async ({
     resolve(artifacts, "atlas-demo-evidence.json"),
     JSON.stringify(
       {
-        schema_version: "atlas-portfolio-demo-v1",
+        schema_version: "atlas-portfolio-demo-v2",
         atlas: provenance,
         scenario: "Robot 3 inspection sensor failure",
         mission: { id: mission.id, expected_status: "failed" },
@@ -114,6 +130,11 @@ test("capture the Robot 3 evidence-grounded failure story", async ({
           citations: result.citations,
           limitations: result.limitations,
           recommended_next_step: result.recommended_next_step,
+        },
+        ui_verification: {
+          document_revision_opened: "DOC-SENSOR-001@1.0",
+          document_hash_verified: true,
+          triggering_event_focused: eventId,
         },
       },
       null,

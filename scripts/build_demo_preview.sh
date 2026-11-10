@@ -10,6 +10,6 @@ if ! command -v ffmpeg >/dev/null 2>&1; then
 fi
 
 mkdir -p "$(dirname "$output")"
-ffmpeg -y -i "$input" -filter_complex \
-  "fps=8,scale=960:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=diff[p];[s1][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle" \
+ffmpeg -y -ss 0.5 -i "$input" -filter_complex \
+  "fps=12,scale=1280:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=diff[p];[s1][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle" \
   "$output"
