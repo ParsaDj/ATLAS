@@ -1,7 +1,7 @@
 # ATLAS — Understand why a robot mission failed
 
-[![Tests](https://github.com/ParsaDj/ATLAS/actions/workflows/tests.yml/badge.svg)](https://github.com/ParsaDj/ATLAS/actions/workflows/tests.yml)
-[![Docker Compose smoke test](https://github.com/ParsaDj/ATLAS/actions/workflows/compose-smoke.yml/badge.svg)](https://github.com/ParsaDj/ATLAS/actions/workflows/compose-smoke.yml)
+[![Tests](https://github.com/ParsaDj/ATLAS/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/ParsaDj/ATLAS/actions/workflows/tests.yml?query=branch%3Amain)
+[![Docker Compose smoke test](https://github.com/ParsaDj/ATLAS/actions/workflows/compose-smoke.yml/badge.svg?branch=main)](https://github.com/ParsaDj/ATLAS/actions/workflows/compose-smoke.yml?query=branch%3Amain)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 ATLAS is an independent, open-source robotics operations platform for a
