@@ -103,8 +103,9 @@ correct; human review and evaluation remain necessary.
 
 ## Residual risks and planned controls
 
-- The prototype uses one shared bridge credential. A production deployment
-  needs per-robot identities, rotation, revocation, and preferably mTLS.
+- The reproducible demo uses one shared bridge identity. Production configuration
+  supports scoped per-robot keys and bounded rotation, but revocation still
+  requires configuration reload and device identity is not certificate-backed.
 - Human authentication is local. Enterprise deployment needs an external
   identity provider, MFA, account recovery, and centralized session revocation.
 - Login throttling and heartbeat monitoring are process-local and assume one

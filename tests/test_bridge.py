@@ -2,7 +2,10 @@ from datetime import datetime, timezone
 
 import httpx
 import pytest
+from fastapi.testclient import TestClient
 
+from apps.api.main import create_app
+from apps.api.migrations import upgrade_database
 from robotics.atlas_bridge import (
     AtlasBridge,
     MissionCoordinator,
@@ -13,6 +16,7 @@ from robotics.atlas_bridge import (
 
 
 BRIDGE_KEY = "atlas-test-bridge-key-1234567890"
+PREVIOUS_BRIDGE_KEY = "atlas-previous-bridge-key-1234567890"
 
 
 def observation(event_id="ros:robot-1:1"):
@@ -33,6 +37,123 @@ def test_telemetry_requires_machine_credentials(system):
     assert client.post("/api/telemetry", json=body).status_code == 401
     client.headers["X-ATLAS-Bridge-Key"] = "wrong-key"
     assert client.post("/api/telemetry", json=body).status_code == 401
+
+
+def test_bridge_key_rotation_accepts_active_and_previous_keys(database_url):
+    upgrade_database(database_url)
+    app = create_app(
+        database_url,
+        monitor=False,
+        bootstrap_admin_password="atlas-test-admin-password",
+        telemetry_api_key=BRIDGE_KEY,
+        telemetry_previous_api_key=PREVIOUS_BRIDGE_KEY,
+    )
+    with TestClient(app) as client:
+        body = observation("rotation-active").payload()
+        active = client.post(
+            "/api/telemetry",
+            json=body,
+            headers={"X-ATLAS-Bridge-Key": BRIDGE_KEY},
+        )
+        assert active.status_code == 200
+
+        previous_body = observation("rotation-previous").payload()
+        previous = client.post(
+            "/api/telemetry",
+            json=previous_body,
+            headers={"X-ATLAS-Bridge-Key": PREVIOUS_BRIDGE_KEY},
+        )
+        assert previous.status_code == 200
+
+        rejected = client.post(
+            "/api/telemetry",
+            json=observation("rotation-rejected").payload(),
+            headers={"X-ATLAS-Bridge-Key": "unknown-bridge-key-1234567890"},
+        )
+        assert rejected.status_code == 401
+
+
+def test_bridge_rotation_rejects_duplicate_keys(database_url):
+    upgrade_database(database_url)
+    with pytest.raises(ValueError, match="must differ"):
+        create_app(
+            database_url,
+            monitor=False,
+            bootstrap_admin_password="atlas-test-admin-password",
+            telemetry_api_key=BRIDGE_KEY,
+            telemetry_previous_api_key=BRIDGE_KEY,
+        )
+
+
+def test_per_robot_bridge_identity_limits_ingestion_and_reads(database_url):
+    robot_1_key = "robot-1-scoped-bridge-key-1234567890"
+    robot_2_key = "robot-2-scoped-bridge-key-1234567890"
+    upgrade_database(database_url)
+    app = create_app(
+        database_url,
+        monitor=False,
+        bootstrap_admin_password="atlas-test-admin-password",
+        robot_telemetry_api_keys={
+            "robot-1": [robot_1_key],
+            "robot-2": [robot_2_key],
+        },
+    )
+    with TestClient(app) as client:
+        login = client.post(
+            "/api/auth/login",
+            json={
+                "username": "atlas-admin",
+                "password": "atlas-test-admin-password",
+            },
+        ).json()
+        client.headers["X-CSRF-Token"] = login["csrf_token"]
+        robot_1_mission = client.post(
+            "/api/missions",
+            json={"robot_id": "robot-1", "waypoints": [{"x": 1, "y": 1}]},
+        ).json()
+        robot_2_mission = client.post(
+            "/api/missions",
+            json={"robot_id": "robot-2", "waypoints": [{"x": 2, "y": 2}]},
+        ).json()
+        client.cookies.clear()
+        client.headers.pop("X-CSRF-Token")
+        client.headers["X-ATLAS-Bridge-Key"] = robot_1_key
+
+        assert client.post(
+            "/api/telemetry", json=observation("robot-1-scoped-event").payload()
+        ).status_code == 200
+        wrong_robot = observation("robot-2-forbidden-event").payload()
+        wrong_robot["robot_id"] = "robot-2"
+        assert client.post("/api/telemetry", json=wrong_robot).status_code == 403
+
+        missions = client.get("/api/missions").json()
+        assert [mission["id"] for mission in missions] == [robot_1_mission["id"]]
+        assert client.get(f"/api/missions/{robot_1_mission['id']}").status_code == 200
+        assert client.get(f"/api/missions/{robot_2_mission['id']}").status_code == 403
+        assert [robot["id"] for robot in client.get("/api/robots").json()] == [
+            "robot-1"
+        ]
+
+
+def test_per_robot_bridge_keys_must_be_unique(database_url):
+    upgrade_database(database_url)
+    shared = "shared-robot-bridge-key-1234567890"
+    with pytest.raises(ValueError, match="unique across robot identities"):
+        create_app(
+            database_url,
+            monitor=False,
+            bootstrap_admin_password="atlas-test-admin-password",
+            robot_telemetry_api_keys={"robot-1": shared, "robot-2": shared},
+        )
+
+    with pytest.raises(ValueError, match="Facility and robot bridge keys"):
+        create_app(
+            database_url,
+            monitor=False,
+            bootstrap_admin_password="atlas-test-admin-password",
+            telemetry_api_key=shared,
+            robot_telemetry_api_keys={"robot-1": shared},
+        )
 
 
 def test_bridge_delivers_and_acknowledges_event(system, tmp_path):
