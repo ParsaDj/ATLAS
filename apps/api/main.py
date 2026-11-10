@@ -262,6 +262,7 @@ def create_app(
     bootstrap_admin_password=None,
     bootstrap_admin_username=None,
     telemetry_api_key=None,
+    telemetry_previous_api_key=None,
     otlp_endpoint=None,
     request_log=None,
     security_clock=None,
@@ -285,6 +286,9 @@ def create_app(
         else os.getenv("ATLAS_SECURE_COOKIES") == "1"
     )
     bridge_key = telemetry_api_key or os.getenv("ATLAS_TELEMETRY_API_KEY")
+    previous_bridge_key = telemetry_previous_api_key or os.getenv(
+        "ATLAS_TELEMETRY_PREVIOUS_API_KEY"
+    )
     configured_bootstrap_password = (
         bootstrap_admin_password or os.getenv("ATLAS_BOOTSTRAP_ADMIN_PASSWORD")
     )
@@ -295,6 +299,7 @@ def create_app(
         public_url=configured_public_url,
         secure_cookies=secure_session_cookies,
         telemetry_api_key=bridge_key,
+        telemetry_previous_api_key=previous_bridge_key,
         bootstrap_admin_password=configured_bootstrap_password,
     )
     engine = create_engine(configured_database_url)
@@ -315,8 +320,19 @@ def create_app(
     tracing = tracer_provider(otlp_endpoint)
     login_limiter = LoginRateLimiter(time_source=security_clock or monotonic)
     dummy_password = password_hash(secrets.token_urlsafe(24))
-    if bridge_key and len(bridge_key) < 24:
-        raise ValueError("ATLAS_TELEMETRY_API_KEY must contain at least 24 characters")
+    bridge_keys = tuple(
+        key for key in (bridge_key, previous_bridge_key) if key is not None
+    )
+    for name, key in (
+        ("ATLAS_TELEMETRY_API_KEY", bridge_key),
+        ("ATLAS_TELEMETRY_PREVIOUS_API_KEY", previous_bridge_key),
+    ):
+        if key is not None and len(key) < 24:
+            raise ValueError(f"{name} must contain at least 24 characters")
+    if previous_bridge_key is not None and previous_bridge_key == bridge_key:
+        raise ValueError(
+            "ATLAS_TELEMETRY_PREVIOUS_API_KEY must differ from the active key"
+        )
     selected_investigator = investigator_mode or os.getenv(
         "ATLAS_INVESTIGATOR_MODE", "deterministic"
     )
@@ -330,12 +346,19 @@ def create_app(
             timeout=float(os.getenv("ATLAS_LLM_TIMEOUT_SECONDS", "30")),
         )
 
+    def bridge_key_matches(candidate: str | None) -> bool:
+        if candidate is None:
+            return False
+        candidate_bytes = candidate.encode()
+        matched = False
+        for configured_key in bridge_keys:
+            matched |= hmac.compare_digest(candidate_bytes, configured_key.encode())
+        return matched
+
     def authorize_bridge(x_atlas_bridge_key: str | None = Header(default=None)):
-        if not bridge_key:
+        if not bridge_keys:
             raise HTTPException(503, "Telemetry ingestion is not configured")
-        if not x_atlas_bridge_key or not hmac.compare_digest(
-            x_atlas_bridge_key.encode(), bridge_key.encode()
-        ):
+        if not bridge_key_matches(x_atlas_bridge_key):
             raise HTTPException(401, "Invalid bridge credentials")
 
     def authorize_operational_read(
@@ -345,9 +368,7 @@ def create_app(
         """Allow a human session or the machine bridge identity to read operations."""
         if request.cookies.get("atlas_session"):
             return actor_from_request(request)
-        if bridge_key and x_atlas_bridge_key and hmac.compare_digest(
-            x_atlas_bridge_key.encode(), bridge_key.encode()
-        ):
+        if bridge_key_matches(x_atlas_bridge_key):
             return {"id": "robot-bridge", "username": "robot-bridge", "role": "bridge"}
         raise HTTPException(401, "Authentication required")
 
