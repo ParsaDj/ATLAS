@@ -78,9 +78,24 @@ test("operator follows failed mission and triggering telemetry", async ({
   await expect(
     drawer.getByRole("region", { name: "Investigation result" }),
   ).toContainText("supports a sensor-path mission failure");
-  await expect(drawer.getByText(/document:DOC-SENSOR-001/)).toBeVisible();
+  const documentCitation = drawer.getByRole("button", {
+    name: /Open document evidence DOC-SENSOR-001/,
+  });
+  await expect(documentCitation).toBeVisible();
   await expect(drawer.getByText(/do not distinguish hardware/)).toBeVisible();
-  await drawer.getByRole("button", { name: "Open linked mission" }).click();
+  await documentCitation.click();
+  const citedDocument = drawer.getByRole("region", {
+    name: "Cited technical document",
+  });
+  await expect(citedDocument).toContainText("Inspection sensor failure");
+  await expect(citedDocument.getByText("verified", { exact: true })).toBeVisible();
+
+  const eventCitation = drawer.getByRole("button", {
+    name: /Open event evidence browser-seed-3-/,
+  });
+  await eventCitation.click();
+  await expect(drawer.locator(".evidence:focus")).toContainText(/browser-seed-3-/);
+  await drawer.getByRole("button", { name: /Open mission evidence/ }).click();
   await expect(
     page
       .getByRole("dialog", { name: "Mission details" })

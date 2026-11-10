@@ -5,6 +5,9 @@ All notable changes to ATLAS are documented here. The project follows
 
 ## [Unreleased]
 
+- Make investigation citations actionable: mission citations open the linked
+  mission, event citations focus exact telemetry, and document citations load
+  and hash-verify the cited revision in place.
 - Deduplicate branch and pull-request CI, cancel superseded runs, and pin the
   verification environment to Ubuntu 24.04.
 - Add audited technical-document retirement so obsolete approved guidance is

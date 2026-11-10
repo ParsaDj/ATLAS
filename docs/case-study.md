@@ -22,7 +22,9 @@ follows the investigation.
 4. The investigator receives only the linked mission, cited events, and latest
    approved document revisions.
 5. It returns a finding, limitations, next step, citations, and tool trace.
-6. An operator may separately propose or approve maintenance or a replacement
+6. The operator can open each citation directly: mission state, triggering
+   telemetry, or the exact hash-verified technical-document revision.
+7. An operator may separately propose or approve maintenance or a replacement
    mission. The investigator has no write or robot-control tool.
 
 The portfolio demonstration injects one failed sensor observation for Robot 3.

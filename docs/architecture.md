@@ -113,6 +113,12 @@ refreshes immediately, while polling the current page cannot shift its boundary.
 
 Incident details retrieve referenced evidence separately from the paginated event timeline. Missing evidence is an error state, never replaced with an AI explanation. The coordinate plot uses last reported positions; it is not a navigation map.
 
+Investigation citations are operational navigation controls rather than static
+labels. Mission citations open the exact mission record, event citations focus
+the separately retrieved triggering-evidence card, and document citations load
+the cited immutable revision. The dashboard compares the returned revision hash
+with the investigation citation before marking the document verified.
+
 The Knowledge view exposes active approved technical-document revisions to every authenticated role. Administrators also see drafts and retired history, and can create, approve, or retire revisions through separate actions. Retirement requires a reason and never deletes or mutates the revision content. Each card displays its lifecycle state, fault classification, recommended action, exact version, and full content hash. Incident citations show the same version and a shortened hash so an operator can trace a finding back to its source revision.
 
 ## Resumable synthetic execution

@@ -101,6 +101,8 @@ flowchart LR
   protection.
 - React and TypeScript operations dashboard for fleet status, missions,
   incidents, evidence, technical documents, approvals, users, and audit history.
+  Investigation citations navigate directly to the exact mission and triggering
+  telemetry or open the cited document revision with an in-place hash check.
 - Deterministic evidence-grounded investigation plus an optional model-backed
   adapter with strict structured output, citation allowlisting, immutable
   document revisions, audited retirement, SHA-256 provenance, and a safe
@@ -175,6 +177,8 @@ not just endpoint coverage:
 - missing cited evidence forces an insufficient investigation.
 - retired technical guidance remains auditable but cannot influence a new
   investigation.
+- every investigation citation is actionable in the operator interface and
+  resolves to the exact persisted record or immutable document revision.
 
 The current verification includes **268 Python tests**, **120 reproducible
 investigation cases**, **50 generated state-machine traces**, **11 browser

@@ -1070,11 +1070,56 @@ dd {
   gap: 7px;
   margin-bottom: 14px;
 }
-.citation-list code {
+.citation-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 7px;
   border-radius: 5px;
   background: #eaf1e5;
+  border-color: #cbdcc4;
+  text-align: left;
+}
+.citation-button code {
   overflow-wrap: anywhere;
+}
+.citation-button span {
+  color: #52705e;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.evidence:focus {
+  border-color: #26705a;
+  box-shadow: 0 0 0 3px #26705a22;
+}
+.cited-document {
+  border: 1px solid #cbdcc4;
+  border-radius: 7px;
+  background: #fff;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.cited-document-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.cited-document p {
+  margin-bottom: 10px;
+}
+.cited-document small,
+.cited-document code {
+  overflow-wrap: anywhere;
+}
+.badge.verified {
+  background: #eaf4eb;
+  color: #4b8158;
+}
+.badge.mismatch {
+  background: #f9e6e4;
+  color: #a14d43;
 }
 @media (min-width: 1500px) {
   .map svg {
