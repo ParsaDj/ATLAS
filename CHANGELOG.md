@@ -16,9 +16,8 @@ All notable changes to ATLAS are documented here. The project follows
   verification environment to Ubuntu 24.04.
 - Add audited technical-document retirement so obsolete approved guidance is
   preserved for review but excluded from future incident investigations.
-- Validate the ROS 2 Jazzy/Nav2 adapter with one Gazebo Harmonic robot.
-- Publish results from the frozen benchmark against a named live model.
-- Record the narrated two-minute portfolio walkthrough.
+- Add a machine-readable release-readiness gate that checks semantic versioning,
+  version surfaces, tag alignment, required files, and repository cleanliness.
 
 ## [0.1.0] - Pending
 
