@@ -1455,6 +1455,9 @@ function Details({
   const [investigation, setInvestigation] = useState<Investigation | null>(
     null,
   );
+  const [selectedDocumentCitation, setSelectedDocumentCitation] = useState<
+    Investigation["citations"][number] | null
+  >(null);
   const mission =
     selection.kind === "missions" ? (data as Mission | undefined) : undefined;
   const incident =
@@ -1488,6 +1491,13 @@ function Details({
       : null,
     revision,
   );
+  const citedDocument = useResource<TechnicalDocument>(
+    selectedDocumentCitation?.type === "document" &&
+      selectedDocumentCitation.version
+      ? `/api/documents/${encodeURIComponent(selectedDocumentCitation.id)}/versions/${encodeURIComponent(selectedDocumentCitation.version)}`
+      : null,
+    revision,
+  );
   useEffect(() => {
     if (sourceMission.data && sourceMission.data.id !== replacementSourceId) {
       setReplacementWaypoints(sourceMission.data.waypoints.map((point) => ({ ...point })));
@@ -1518,6 +1528,7 @@ function Details({
   async function runInvestigation() {
     setBusy(true);
     setError("");
+    setSelectedDocumentCitation(null);
     try {
       setInvestigation(
         await api<Investigation>(
@@ -1530,6 +1541,19 @@ function Details({
     } finally {
       setBusy(false);
     }
+  }
+  function openCitation(citation: Investigation["citations"][number]) {
+    if (citation.type === "mission") {
+      onSelect({ kind: "missions", id: citation.id });
+      return;
+    }
+    if (citation.type === "document") {
+      setSelectedDocumentCitation(citation);
+      return;
+    }
+    const target = document.getElementById(`evidence-${citation.id}`);
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    target?.focus({ preventScroll: true });
   }
   async function createTicket() {
     setBusy(true);
@@ -1942,13 +1966,59 @@ function Details({
                     <h4>Citations</h4>
                     <div className="citation-list">
                       {investigation.citations.map((citation) => (
-                        <code key={`${citation.type}:${citation.id}`}>
-                          {citation.type}:{citation.id}
-                          {citation.version ? `@${citation.version}` : ""}
-                          {citation.sha256 ? ` · ${citation.sha256.slice(0, 12)}` : ""}
-                        </code>
+                        <button
+                          type="button"
+                          className="citation-button"
+                          key={`${citation.type}:${citation.id}`}
+                          onClick={() => openCitation(citation)}
+                          aria-label={`Open ${citation.type} evidence ${citation.id}`}
+                        >
+                          <code>
+                            {citation.type}:{citation.id}
+                            {citation.version ? `@${citation.version}` : ""}
+                            {citation.sha256 ? ` · ${citation.sha256.slice(0, 12)}` : ""}
+                          </code>
+                          <span>Open ↗</span>
+                        </button>
                       ))}
                     </div>
+                    {selectedDocumentCitation && (
+                      <section
+                        className="cited-document"
+                        aria-label="Cited technical document"
+                      >
+                        {citedDocument.error ? (
+                          <p role="alert">
+                            Cited document unavailable: {citedDocument.error}
+                          </p>
+                        ) : citedDocument.data ? (
+                          <>
+                            <div className="cited-document-heading">
+                              <div>
+                                <code>
+                                  {citedDocument.data.id}@{citedDocument.data.version}
+                                </code>
+                                <h4>{citedDocument.data.title}</h4>
+                              </div>
+                              <Badge
+                                status={
+                                  selectedDocumentCitation.sha256 ===
+                                  citedDocument.data.sha256
+                                    ? "verified"
+                                    : "mismatch"
+                                }
+                              />
+                            </div>
+                            <p>{citedDocument.data.content}</p>
+                            <small>
+                              SHA-256 {citedDocument.data.sha256}
+                            </small>
+                          </>
+                        ) : (
+                          <p>Loading cited revision…</p>
+                        )}
+                      </section>
+                    )}
                     <small>
                       {investigation.generated_by}
                       {investigation.model
@@ -2151,7 +2221,7 @@ function Details({
 function Evidence({ id }: { id: string }) {
   const evidence = useResource<Event>(`/api/events/${encodeURIComponent(id)}`);
   return (
-    <div className="evidence">
+    <div className="evidence" id={`evidence-${id}`} tabIndex={-1}>
       <code>{id}</code>
       {evidence.error ? (
         <p role="alert">Evidence unavailable: {evidence.error}</p>
