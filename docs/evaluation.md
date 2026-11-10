@@ -4,7 +4,7 @@ Run `python -m pytest -q`. Current tests verify synthetic operational behavior a
 
 The full-fleet test advances a controlled clock through the simulator scenario and asserts two completed missions, three failed missions, and the three expected incident types. Other tests check duplicate delivery (including concurrent retries), conflicting event IDs, concurrent approvals, invalid state transitions, input validation, stale telemetry, missing heartbeats, and recovery without resurrecting failed missions.
 
-SQLite is verified locally, and GitHub Actions runs the workflow suite against PostgreSQL 17. The shared fixture uses isolated schemas through `ATLAS_TEST_POSTGRES_URL`. A separate Compose workflow builds the actual multi-stage image, starts a fresh PostgreSQL volume, runs the approved failure demonstration, restarts the database and API, verifies a second persisted workflow, and executes a small benchmark smoke workload.
+SQLite is verified locally, and GitHub Actions runs the workflow suite against PostgreSQL 17 on a pinned Ubuntu 24.04 runner. Pull requests run each verification workflow once; pushes run on `main`, and concurrency groups cancel superseded executions for the same pull request or branch. The shared fixture uses isolated schemas through `ATLAS_TEST_POSTGRES_URL`. A separate Compose workflow builds the actual multi-stage image, starts a fresh PostgreSQL volume, runs the approved failure demonstration, restarts the database and API, verifies a second persisted workflow, and executes a small benchmark smoke workload.
 
 ## Incident investigation evaluation
 
@@ -45,7 +45,7 @@ Seven additional API/worker tests cover ordered completion, restarting from comm
 
 ## Migration validation
 
-Five tests verify fresh schema creation, metadata drift detection, downgrade/reapply behavior, rejection of an unmigrated database, adoption of a legacy schema without losing records, and indexed operational-record backfill. The dashboard integration server also migrates its temporary SQLite database before startup. GitHub Actions runs a standalone migration smoke test and exercises the application suite against PostgreSQL 17.
+Six tests verify fresh schema creation, metadata drift detection, downgrade/reapply behavior, rejection of an unmigrated database, adoption of a legacy schema without losing records, and indexed operational-record and document-retirement migrations. The dashboard integration server also migrates its temporary SQLite database before startup. GitHub Actions runs a standalone migration smoke test and exercises the application suite against PostgreSQL 17.
 
 ## Observability validation
 

@@ -2,11 +2,17 @@ name: Docker Compose smoke test
 
 on:
   push:
+    branches:
+      - main
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   compose-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       ATLAS_BUILD_SHA: ${{ github.sha }}
