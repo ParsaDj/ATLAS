@@ -51,7 +51,7 @@ jobs:
         run: pnpm demo:capture
         working-directory: apps/dashboard
       - name: Upload portfolio demo artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: atlas-portfolio-demo
           path: apps/dashboard/demo-artifacts/
