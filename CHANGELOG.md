@@ -5,6 +5,8 @@ All notable changes to ATLAS are documented here. The project follows
 
 ## [Unreleased]
 
+- Deduplicate branch and pull-request CI, cancel superseded runs, and pin the
+  verification environment to Ubuntu 24.04.
 - Add audited technical-document retirement so obsolete approved guidance is
   preserved for review but excluded from future incident investigations.
 - Validate the ROS 2 Jazzy/Nav2 adapter with one Gazebo Harmonic robot.
