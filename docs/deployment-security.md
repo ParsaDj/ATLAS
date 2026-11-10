@@ -50,6 +50,27 @@ compares every configured candidate in constant time and never returns which key
 matched. A previous key is an emergency rotation window, not a second permanent
 credential.
 
+## Scope credentials to robots
+
+For a remote bridge deployment, omit the facility key and configure a JSON
+object whose keys are registered robot IDs. Each value is either one active key
+or an array containing the active and retiring keys:
+
+```sh
+export ATLAS_ROBOT_TELEMETRY_API_KEYS='{
+  "robot-1": ["robot-1-active-random-value-at-least-32-characters"],
+  "robot-2": ["robot-2-active-random-value-at-least-32-characters",
+              "robot-2-retiring-random-value-at-least-32-characters"]
+}'
+```
+
+A robot identity can ingest telemetry only for its robot. Its operational reads
+are restricted to that robot's state, telemetry, missions, events, and
+incidents. Keys must be unique across robot identities. Human sessions retain
+their role-based facility view. This configuration provides scoped identity and
+rotation; it does not replace TLS, a managed secret store, or certificate-based
+device identity.
+
 On the first start of a new database, also provide a unique bootstrap password
 with at least 16 characters. Remove it from the runtime environment after the
 administrator has been created.
@@ -65,9 +86,8 @@ environment.
 Before exposing ATLAS beyond a controlled demonstration:
 
 - terminate TLS at a maintained proxy or gateway and restrict allowed hosts;
-- keep credentials in a managed secret store, define rotation, and use a
-  separate credential for each robot or bridge identity when that identity
-  model is introduced;
+- keep per-robot credentials in a managed secret store, define rotation and
+  revocation, and prefer certificate-backed device identity for physical fleets;
 - restrict database network access, encrypt backups, and test restoration;
 - replace local accounts with managed identity, MFA, recovery, and offboarding;
 - move login throttling and heartbeat monitoring to shared services before
