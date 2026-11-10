@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: "22"
       - name: Verify tag matches project version
-        run: test "$GITHUB_REF_NAME" = "v$(cat VERSION)"
+        run: python -m scripts.release_readiness --tag "$GITHUB_REF_NAME"
       - name: Run Python tests
         run: |
           pip install -r requirements.txt

@@ -7,6 +7,9 @@ safety, production readiness, or live-model accuracy.
 
 ## Required before tagging
 
+- [ ] Run `python -m scripts.release_readiness --allow-dirty` while preparing
+  the release, then run `python -m scripts.release_readiness --tag v0.1.0`
+  from the clean commit that will be tagged. Review every reported check.
 - [ ] Confirm `VERSION`, Python package metadata, dashboard package metadata,
   and the API `/version` response all report `0.1.0`.
 - [ ] Confirm the Python, dashboard, browser, and Docker Compose workflows pass
@@ -53,3 +56,7 @@ These strengthen the portfolio but do not block the synthetic software release:
 The release must continue to describe ATLAS as a simulated, single-facility
 portfolio system. Do not claim that its synthetic measurements establish
 physical robot safety, production fleet reliability, or general model accuracy.
+
+The tag-triggered Release workflow reruns the readiness gate without
+`--allow-dirty`; a mismatched tag, inconsistent version surface, missing release
+document, or dirty checkout stops publication before artifacts are created.
