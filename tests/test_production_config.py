@@ -10,6 +10,7 @@ VALID = {
     "secure_cookies": True,
     "telemetry_api_key": "bridge-key-7c1d9e3f5a8b2c4d6e0f1a3b",
     "telemetry_previous_api_key": None,
+    "robot_telemetry_api_keys": {},
     "bootstrap_admin_password": "admin-secret-7c1d9e3f5a8b",
 }
 
@@ -27,6 +28,7 @@ def test_development_mode_keeps_local_configuration_available():
         secure_cookies=False,
         telemetry_api_key=None,
         telemetry_previous_api_key=None,
+        robot_telemetry_api_keys={},
     )
 
 
@@ -79,6 +81,15 @@ def test_production_mode_rejects_unsafe_previous_bridge_key(
 def test_production_mode_requires_rotation_keys_to_differ():
     with pytest.raises(RuntimeError, match="distinct active and previous"):
         validate(telemetry_previous_api_key=VALID["telemetry_api_key"])
+
+
+def test_production_mode_accepts_per_robot_keys_without_facility_key():
+    validate(
+        telemetry_api_key=None,
+        robot_telemetry_api_keys={
+            "robot-1": "robot-1-production-key-7c1d9e3f5a8b2c4d6e0f"
+        },
+    )
 
 
 @pytest.mark.parametrize(
