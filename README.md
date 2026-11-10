@@ -106,8 +106,9 @@ flowchart LR
   document revisions, SHA-256 provenance, and a safe offline fallback.
 - Human-approved maintenance tickets, replacement missions, and escaped
   printable incident and mission reports.
-- ROS-independent bridge core with machine authentication, stable event IDs,
-  mission polling, and a durable SQLite outbox for interrupted connectivity.
+- ROS-independent bridge core with facility or per-robot machine identities,
+  zero-downtime key rotation, stable event IDs, scoped mission polling, and a
+  durable SQLite outbox for interrupted connectivity.
 - ROS 2/Nav2 adapter that maps approved missions to `NavigateThroughPoses` and
   translates odometry, battery, diagnostics, and action results into ATLAS.
 - Structured logs, correlation IDs, Prometheus metrics, readiness checks, and
@@ -168,9 +169,11 @@ not just endpoint coverage:
 - cancellation racing telemetry cannot resurrect a mission;
 - simultaneous sensor and battery faults commit both incidents;
 - an interrupted bridge retains events and replays them without duplication;
+- active and retiring bridge credentials overlap during a bounded rotation;
+- a robot-scoped bridge cannot ingest or read another robot's records;
 - missing cited evidence forces an insufficient investigation.
 
-The current verification includes **257 Python tests**, **120 reproducible
+The current verification includes **265 Python tests**, **120 reproducible
 investigation cases**, **50 generated state-machine traces**, **11 browser
 workflows**, and **1 isolated portfolio capture**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real

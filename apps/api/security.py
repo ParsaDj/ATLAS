@@ -22,6 +22,8 @@ def validate_deployment_config(
     public_url,
     secure_cookies,
     telemetry_api_key,
+    telemetry_previous_api_key=None,
+    robot_telemetry_api_keys=None,
     bootstrap_admin_password=None,
 ):
     """Fail fast when an explicitly production-mode process is unsafe.
@@ -42,9 +44,39 @@ def validate_deployment_config(
         raise RuntimeError("Production mode requires an HTTPS ATLAS_PUBLIC_URL")
     if not secure_cookies:
         raise RuntimeError("Production mode requires ATLAS_SECURE_COOKIES=1")
-    _require_production_secret(
-        "ATLAS_TELEMETRY_API_KEY", telemetry_api_key, minimum_length=32
-    )
+    robot_telemetry_api_keys = robot_telemetry_api_keys or {}
+    if telemetry_api_key is None and not robot_telemetry_api_keys:
+        raise RuntimeError(
+            "Production mode requires ATLAS_TELEMETRY_API_KEY or per-robot keys"
+        )
+    if telemetry_api_key is not None:
+        _require_production_secret(
+            "ATLAS_TELEMETRY_API_KEY", telemetry_api_key, minimum_length=32
+        )
+    if telemetry_previous_api_key is not None:
+        if telemetry_api_key is None:
+            raise RuntimeError(
+                "ATLAS_TELEMETRY_PREVIOUS_API_KEY requires an active facility key"
+            )
+        _require_production_secret(
+            "ATLAS_TELEMETRY_PREVIOUS_API_KEY",
+            telemetry_previous_api_key,
+            minimum_length=32,
+        )
+        if telemetry_previous_api_key == telemetry_api_key:
+            raise RuntimeError(
+                "Production mode requires distinct active and previous telemetry keys"
+            )
+    for robot_id, keys in robot_telemetry_api_keys.items():
+        values = [keys] if isinstance(keys, str) else keys
+        if not isinstance(values, list):
+            raise RuntimeError("Production per-robot bridge keys must be strings or lists")
+        for key in values:
+            _require_production_secret(
+                f"ATLAS_ROBOT_TELEMETRY_API_KEYS[{robot_id}]",
+                key,
+                minimum_length=32,
+            )
     if bootstrap_admin_password is not None:
         _require_production_secret(
             "ATLAS_BOOTSTRAP_ADMIN_PASSWORD",
