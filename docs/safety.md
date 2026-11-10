@@ -10,7 +10,7 @@ Downloaded reports escape stored values before rendering and clearly label inves
 
 Investigation output cannot reschedule a robot. Replacement missions require an authenticated operator or administrator to submit an explicit waypoint proposal and a separate approval transition before execution. The server validates the failed source mission and blocks duplicate active replacements.
 
-The incident investigator has read-only access to API-supplied telemetry, mission records, and approved technical-document revisions. It cites document identifiers, versions, and content hashes, expresses uncertainty, and treats missing referenced evidence as insufficient. Its tool trace contains only record retrieval and document retrieval operations. It has no database connection, write tools, ticket access, mission transition access, or robot control path.
+The incident investigator has read-only access to API-supplied telemetry, mission records, and active approved technical-document revisions. Retired guidance is preserved for administrative audit but excluded from new evidence envelopes. The investigator cites document identifiers, versions, and content hashes, expresses uncertainty, and treats missing referenced evidence as insufficient. Its tool trace contains only record retrieval and document retrieval operations. It has no database connection, write tools, ticket access, mission transition access, or robot control path.
 
 The optional language-model renderer preserves the same server-enforced
 evidence and authorization boundary. Invalid output or unavailable providers

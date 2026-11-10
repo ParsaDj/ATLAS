@@ -6,7 +6,6 @@ import hashlib
 import hmac
 import json
 import os
-from pathlib import Path
 import logging
 import math
 import secrets
@@ -164,6 +163,10 @@ class TechnicalDocument(Base):
     checksum: Mapped[str] = mapped_column(String)
     approved: Mapped[bool] = mapped_column(Boolean, index=True)
     created_at: Mapped[str] = mapped_column(String, index=True)
+    retired_at: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    retired_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
 
 
 class StrictModel(BaseModel):
@@ -232,6 +235,10 @@ class TechnicalDocumentRequest(StrictModel):
     title: str = Field(min_length=3, max_length=200, pattern=r"\S")
     content: str = Field(min_length=20, max_length=100_000, pattern=r"\S")
     next_step: str = Field(min_length=3, max_length=1000, pattern=r"\S")
+
+
+class DocumentRetirementRequest(StrictModel):
+    reason: str = Field(min_length=3, max_length=500, pattern=r"\S")
 
 
 def password_hash(password: str) -> str:
@@ -487,6 +494,8 @@ def create_app(
                             checksum=guide.checksum,
                             approved=True,
                             created_at=clock().isoformat(),
+                            retired_at=None,
+                            retired_by=None,
                         )
                     )
 
@@ -568,13 +577,19 @@ def create_app(
             "sha256": row.checksum,
             "approved": row.approved,
             "created_at": row.created_at,
+            "retired_at": row.retired_at,
+            "retired_by": row.retired_by,
         }
 
     def investigation_guides(db, fault):
         rows = list(
             db.scalars(
                 select(TechnicalDocument)
-                .where(TechnicalDocument.fault == fault, TechnicalDocument.approved.is_(True))
+                .where(
+                    TechnicalDocument.fault == fault,
+                    TechnicalDocument.approved.is_(True),
+                    TechnicalDocument.retired_at.is_(None),
+                )
                 .order_by(TechnicalDocument.id, TechnicalDocument.created_at.desc(), TechnicalDocument.version.desc())
             )
         )
@@ -741,16 +756,24 @@ def create_app(
     def documents(
         fault: str | None = None,
         approved: bool | None = True,
+        retired: bool = False,
         actor=Depends(any_user),
     ):
-        if approved is not True and actor["role"] != "administrator":
-            raise HTTPException(403, "Only administrators can view unapproved revisions")
+        if (approved is not True or retired) and actor["role"] != "administrator":
+            raise HTTPException(
+                403, "Only administrators can view unapproved or retired revisions"
+            )
         with sessions() as db:
             query = select(TechnicalDocument)
             if fault is not None:
                 query = query.where(TechnicalDocument.fault == fault)
             if approved is not None:
                 query = query.where(TechnicalDocument.approved.is_(approved))
+            query = query.where(
+                TechnicalDocument.retired_at.is_not(None)
+                if retired
+                else TechnicalDocument.retired_at.is_(None)
+            )
             query = query.order_by(
                 TechnicalDocument.id,
                 TechnicalDocument.created_at.desc(),
@@ -764,8 +787,10 @@ def create_app(
             row = db.get(TechnicalDocument, (document_id, version))
             if not row:
                 raise HTTPException(404, "Technical document revision not found")
-            if not row.approved and actor["role"] != "administrator":
-                raise HTTPException(403, "Only administrators can view unapproved revisions")
+            if (not row.approved or row.retired_at) and actor["role"] != "administrator":
+                raise HTTPException(
+                    403, "Only administrators can view unapproved or retired revisions"
+                )
             return document_data(row)
 
     @app.post("/api/documents", status_code=201)
@@ -785,6 +810,8 @@ def create_app(
                 checksum=checksum,
                 approved=False,
                 created_at=clock().isoformat(),
+                retired_at=None,
+                retired_by=None,
             )
             db.add(row)
             audit(
@@ -817,6 +844,8 @@ def create_app(
                 raise HTTPException(404, "Technical document revision not found")
             if row.approved:
                 raise HTTPException(409, "Technical document revision is already approved")
+            if row.retired_at:
+                raise HTTPException(409, "Retired technical document revisions cannot be approved")
             row.approved = True
             audit(
                 db,
@@ -825,6 +854,44 @@ def create_app(
                 "technical_document",
                 document_id,
                 {"version": version, "sha256": row.checksum},
+            )
+            return document_data(row)
+
+    @app.post("/api/documents/{document_id}/versions/{version}/retire")
+    def retire_document(
+        document_id: str,
+        version: str,
+        body: DocumentRetirementRequest,
+        actor=Depends(admin_write),
+    ):
+        with sessions.begin() as db:
+            row = db.scalar(
+                select(TechnicalDocument)
+                .where(
+                    TechnicalDocument.id == document_id,
+                    TechnicalDocument.version == version,
+                )
+                .with_for_update()
+            )
+            if not row:
+                raise HTTPException(404, "Technical document revision not found")
+            if not row.approved:
+                raise HTTPException(409, "Only approved revisions can be retired")
+            if row.retired_at:
+                raise HTTPException(409, "Technical document revision is already retired")
+            row.retired_at = clock().isoformat()
+            row.retired_by = actor["id"]
+            audit(
+                db,
+                actor["id"],
+                "document.retire_revision",
+                "technical_document",
+                document_id,
+                {
+                    "version": version,
+                    "sha256": row.checksum,
+                    "reason": body.reason.strip(),
+                },
             )
             return document_data(row)
 

@@ -74,7 +74,7 @@ flowchart LR
 | T11 | Model fabricates evidence or returns a command field | Exact evidence allowlist, required citations, forbidden extra fields, deterministic fallback | LLM adversarial tests in `test_llm_investigator.py` |
 | T12 | Model or provider becomes unavailable | Bounded timeout and deterministic local fallback | `test_provider_failure_falls_back_without_exposing_error_text` |
 | T13 | Model causes a ticket, approval, or robot command | Investigator exposes read-only data transformation only; writes remain separate authenticated routes | Investigation tool-trace and approval workflow tests |
-| T14 | Unapproved technical guidance enters an investigation | Only approved document revisions are retrieved; approvals are administrative and audited | document revision tests in `test_investigation.py` |
+| T14 | Unapproved or retired technical guidance enters an investigation | Only active approved document revisions are retrieved; approval and reason-required retirement are administrative and audited | document lifecycle and authorization tests in `test_investigation.py` |
 | T15 | Stored text executes in a downloaded report | Context escaping before HTML rendering | report injection tests in `test_reports.py` |
 | T16 | Credentials leak through logs or source | Structured log field allowlist, `.env` exclusion, placeholders in examples | observability credential-redaction tests and repository scan |
 

@@ -12,7 +12,7 @@ from apps.api.migrations import (
 )
 
 
-REVISION = "20261007_0005"
+REVISION = "20261109_0006"
 DOMAIN_TABLES = {
     "robots",
     "missions",

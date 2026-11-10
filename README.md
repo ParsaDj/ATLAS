@@ -103,7 +103,8 @@ flowchart LR
   incidents, evidence, technical documents, approvals, users, and audit history.
 - Deterministic evidence-grounded investigation plus an optional model-backed
   adapter with strict structured output, citation allowlisting, immutable
-  document revisions, SHA-256 provenance, and a safe offline fallback.
+  document revisions, audited retirement, SHA-256 provenance, and a safe
+  offline fallback.
 - Human-approved maintenance tickets, replacement missions, and escaped
   printable incident and mission reports.
 - ROS-independent bridge core with facility or per-robot machine identities,
@@ -172,8 +173,10 @@ not just endpoint coverage:
 - active and retiring bridge credentials overlap during a bounded rotation;
 - a robot-scoped bridge cannot ingest or read another robot's records;
 - missing cited evidence forces an insufficient investigation.
+- retired technical guidance remains auditable but cannot influence a new
+  investigation.
 
-The current verification includes **265 Python tests**, **120 reproducible
+The current verification includes **268 Python tests**, **120 reproducible
 investigation cases**, **50 generated state-machine traces**, **11 browser
 workflows**, and **1 isolated portfolio capture**. GitHub Actions runs backend
 behavior against SQLite and PostgreSQL 17 and runs the dashboard against a real
