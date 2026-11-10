@@ -9,6 +9,7 @@ VALID = {
     "public_url": "https://atlas.example.com",
     "secure_cookies": True,
     "telemetry_api_key": "bridge-key-7c1d9e3f5a8b2c4d6e0f1a3b",
+    "telemetry_previous_api_key": None,
     "bootstrap_admin_password": "admin-secret-7c1d9e3f5a8b",
 }
 
@@ -25,6 +26,7 @@ def test_development_mode_keeps_local_configuration_available():
         public_url=None,
         secure_cookies=False,
         telemetry_api_key=None,
+        telemetry_previous_api_key=None,
     )
 
 
@@ -61,6 +63,22 @@ def test_production_mode_requires_secure_cookies():
 def test_production_mode_rejects_missing_or_demo_bridge_secrets(telemetry_api_key):
     with pytest.raises(RuntimeError, match="ATLAS_TELEMETRY_API_KEY"):
         validate(telemetry_api_key=telemetry_api_key)
+
+
+@pytest.mark.parametrize(
+    "telemetry_previous_api_key",
+    ["too-short", "atlas-local-demo-old-bridge-key-123456789"],
+)
+def test_production_mode_rejects_unsafe_previous_bridge_key(
+    telemetry_previous_api_key,
+):
+    with pytest.raises(RuntimeError, match="ATLAS_TELEMETRY_PREVIOUS_API_KEY"):
+        validate(telemetry_previous_api_key=telemetry_previous_api_key)
+
+
+def test_production_mode_requires_rotation_keys_to_differ():
+    with pytest.raises(RuntimeError, match="distinct active and previous"):
+        validate(telemetry_previous_api_key=VALID["telemetry_api_key"])
 
 
 @pytest.mark.parametrize(

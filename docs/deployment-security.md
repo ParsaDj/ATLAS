@@ -31,6 +31,25 @@ export ATLAS_SECURE_COOKIES=1
 export ATLAS_TELEMETRY_API_KEY='a-unique-random-value-with-at-least-32-characters'
 ```
 
+## Rotate the bridge credential
+
+ATLAS accepts one active telemetry key and, temporarily, one previous key. This
+allows bridges with a durable outbox to move to a new credential without an
+ingestion outage:
+
+1. Generate a new random value with at least 32 characters.
+2. Set `ATLAS_TELEMETRY_API_KEY` to the new value and
+   `ATLAS_TELEMETRY_PREVIOUS_API_KEY` to the key being retired.
+3. Restart the API, then update and restart each bridge with the new active key.
+4. Confirm every bridge can poll its mission and flush its outbox.
+5. Remove `ATLAS_TELEMETRY_PREVIOUS_API_KEY` and restart the API again.
+
+Both keys receive the same facility-wide bridge permissions during the overlap.
+Production guards reject short, placeholder, or identical rotation keys. ATLAS
+compares every configured candidate in constant time and never returns which key
+matched. A previous key is an emergency rotation window, not a second permanent
+credential.
+
 On the first start of a new database, also provide a unique bootstrap password
 with at least 16 characters. Remove it from the runtime environment after the
 administrator has been created.
@@ -47,7 +66,8 @@ Before exposing ATLAS beyond a controlled demonstration:
 
 - terminate TLS at a maintained proxy or gateway and restrict allowed hosts;
 - keep credentials in a managed secret store, define rotation, and use a
-  separate credential for each robot or bridge identity;
+  separate credential for each robot or bridge identity when that identity
+  model is introduced;
 - restrict database network access, encrypt backups, and test restoration;
 - replace local accounts with managed identity, MFA, recovery, and offboarding;
 - move login throttling and heartbeat monitoring to shared services before

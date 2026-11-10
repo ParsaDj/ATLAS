@@ -22,6 +22,7 @@ def validate_deployment_config(
     public_url,
     secure_cookies,
     telemetry_api_key,
+    telemetry_previous_api_key=None,
     bootstrap_admin_password=None,
 ):
     """Fail fast when an explicitly production-mode process is unsafe.
@@ -45,6 +46,16 @@ def validate_deployment_config(
     _require_production_secret(
         "ATLAS_TELEMETRY_API_KEY", telemetry_api_key, minimum_length=32
     )
+    if telemetry_previous_api_key is not None:
+        _require_production_secret(
+            "ATLAS_TELEMETRY_PREVIOUS_API_KEY",
+            telemetry_previous_api_key,
+            minimum_length=32,
+        )
+        if telemetry_previous_api_key == telemetry_api_key:
+            raise RuntimeError(
+                "Production mode requires distinct active and previous telemetry keys"
+            )
     if bootstrap_admin_password is not None:
         _require_production_secret(
             "ATLAS_BOOTSTRAP_ADMIN_PASSWORD",
